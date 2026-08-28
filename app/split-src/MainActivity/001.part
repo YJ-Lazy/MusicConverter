@@ -1,0 +1,196 @@
+av.setOnClickListener { selectPage(1) }
+        aboutNav.setOnClickListener { selectPage(2) }
+        selectPage(0)
+
+        setContentView(screen)
+    }
+
+    private fun pageRoot(): Pair<ScrollView, LinearLayout> {
+        val scroll = ScrollView(this).apply {
+            isFillViewport = true
+            setBackgroundColor(UiKit.BG)
+            clipToPadding = false
+        }
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(UiKit.dp(this@MainActivity, 20), UiKit.dp(this@MainActivity, 22), UiKit.dp(this@MainActivity, 20), UiKit.dp(this@MainActivity, 30))
+        }
+        scroll.addView(root)
+        return scroll to root
+    }
+
+    private fun buildHomePage(): ScrollView {
+        val (scroll, root) = pageRoot()
+
+        val top = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        top.addView(LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            addView(UiKit.text(this@MainActivity, "单文件工作台", 27f, UiKit.TEXT, true))
+            addView(UiKit.text(this@MainActivity, "转换与剪辑，一次专注一首音乐", 12.5f, UiKit.TEXT_3).apply {
+                setPadding(0, UiKit.dp(this@MainActivity, 6), 0, 0)
+            })
+        }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+        val miniIcon = ImageView(this).apply {
+            setImageResource(R.mipmap.ic_launcher)
+            scaleType = ImageView.ScaleType.CENTER_CROP
+        }
+        top.addView(miniIcon, LinearLayout.LayoutParams(UiKit.dp(this, 48), UiKit.dp(this, 48)))
+        root.addView(top)
+
+        root.addView(UiKit.spacer(this, 22))
+        val fileCard = UiKit.card(this, 26).apply {
+            background = UiKit.rounded(Color.parseColor("#17142B"), 26, this@MainActivity, Color.parseColor("#352E62"), 1)
+        }
+        fileCard.addView(UiKit.text(this, "当前音乐", 12f, Color.parseColor("#AFA6E6"), true))
+        val fileRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, UiKit.dp(this@MainActivity, 13), 0, 0)
+        }
+        val fileIcon = UiKit.text(this, "♫", 27f, Color.parseColor("#D5CEFF"), true).apply {
+            gravity = Gravity.CENTER
+            background = UiKit.rounded(Color.parseColor("#2B2450"), 18, this@MainActivity)
+        }
+        fileRow.addView(fileIcon, LinearLayout.LayoutParams(UiKit.dp(this, 54), UiKit.dp(this, 54)))
+        selectedText = UiKit.text(this, "尚未选择文件\n选择一首音乐开始处理", 14f, Color.parseColor("#D3CEE8")).apply {
+            setLineSpacing(0f, 1.18f)
+            setPadding(UiKit.dp(this@MainActivity, 14), 0, 0, 0)
+        }
+        fileRow.addView(selectedText, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+        fileCard.addView(fileRow)
+        root.addView(fileCard)
+
+        root.addView(UiKit.spacer(this, 18))
+        val selectButton = UiKit.wideButton(this, "+", "选择音乐文件", true)
+        root.addView(selectButton)
+
+        root.addView(UiKit.spacer(this, 20))
+        root.addView(UiKit.sectionTitle(this, "处理方式", "转换格式或进入剪辑器"))
+        root.addView(UiKit.spacer(this, 12))
+
+        val convertButton = UiKit.actionTile(this, "⇄", "转换格式", "MP3 · FLAC · M4A · WAV", true)
+        val editButton = UiKit.actionTile(this, "✂", "编辑 / 剪辑", "选区试听 · 暂停 · 保存")
+        val actionRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        actionRow.addView(convertButton, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
+            rightMargin = UiKit.dp(this@MainActivity, 6)
+        })
+        actionRow.addView(editButton, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
+            leftMargin = UiKit.dp(this@MainActivity, 6)
+        })
+        root.addView(actionRow)
+
+        deleteAsk = CheckBox(this).apply {
+            text = "处理完成后询问源文件操作"
+            textSize = 13f
+            setTextColor(UiKit.TEXT_2)
+            isChecked = true
+            setPadding(0, UiKit.dp(this@MainActivity, 17), 0, 0)
+            buttonTintList = android.content.res.ColorStateList(
+                arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()),
+                intArrayOf(UiKit.ACCENT, UiKit.TEXT_3)
+            )
+        }
+        root.addView(deleteAsk)
+        root.addView(UiKit.text(this, "完成后可保留、删除，或用处理结果置换源文件。", 11.5f, UiKit.TEXT_3).apply {
+            setPadding(UiKit.dp(this@MainActivity, 30), 0, 0, 0)
+        })
+
+        root.addView(UiKit.spacer(this, 22))
+        val localCard = UiKit.card(this, 22)
+        localCard.addView(UiKit.text(this, "本地处理", 15f, UiKit.TEXT, true))
+        localCard.addView(UiKit.text(this, "文件解密、转换与剪辑均在设备端执行。输出默认保存至 Music/MusicConverter。", 12f, UiKit.TEXT_3).apply {
+            setPadding(0, UiKit.dp(this@MainActivity, 8), 0, 0)
+            setLineSpacing(0f, 1.2f)
+        })
+        root.addView(localCard)
+
+        selectButton.setOnClickListener { chooseFile() }
+        convertButton.setOnClickListener { showConvertDialog() }
+        editButton.setOnClickListener { openEditor() }
+        return scroll
+    }
+
+    private fun buildBatchPage(): ScrollView {
+        val (scroll, root) = pageRoot()
+
+        root.addView(UiKit.text(this, "批量与工具", 27f, UiKit.TEXT, true))
+        root.addView(UiKit.text(this, "扫描一个目录，一次处理全部支持的音乐", 12.5f, UiKit.TEXT_3).apply {
+            setPadding(0, UiKit.dp(this@MainActivity, 6), 0, 0)
+        })
+
+        root.addView(UiKit.spacer(this, 22))
+        val scanButton = UiKit.wideButton(this, "⌕", "扫描磁盘 / 音乐目录", true)
+        root.addView(scanButton)
+
+        ignoreFormatsButton = UiKit.wideButton(
+            this,
+            "⊘",
+            "忽略格式 · ${IgnoredFormatPreferences.summary(this)}"
+        )
+        UiKit.margins(ignoreFormatsButton, 0, 10, 0, 0)
+        root.addView(ignoreFormatsButton)
+
+        root.addView(UiKit.spacer(this, 14))
+        val batchCard = UiKit.card(this, 26)
+        val batchHead = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        val batchIcon = UiKit.text(this, "≋", 25f, Color.parseColor("#C8BFFF"), true).apply {
+            gravity = Gravity.CENTER
+            background = UiKit.rounded(Color.parseColor("#292344"), 18, this@MainActivity)
+        }
+        batchHead.addView(batchIcon, LinearLayout.LayoutParams(UiKit.dp(this, 52), UiKit.dp(this, 52)))
+        batchText = UiKit.text(this, "尚未扫描目录\n选择内部存储或音乐目录开始", 13.5f, UiKit.TEXT_2).apply {
+            setLineSpacing(0f, 1.18f)
+            setPadding(UiKit.dp(this@MainActivity, 14), 0, 0, 0)
+        }
+        batchHead.addView(batchText, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+        batchCard.addView(batchHead)
+        batchConvertButton = UiKit.wideButton(this, "⇉", "一键转换扫描结果", true).apply {
+            isEnabled = false
+            alpha = 0.45f
+        }
+        UiKit.margins(batchConvertButton, 0, 15, 0, 0)
+        batchCard.addView(batchConvertButton)
+        batchPauseButton = UiKit.wideButton(this, "Ⅱ", "完成当前任务后暂停").apply {
+            isEnabled = false
+            alpha = 0.45f
+        }
+        UiKit.margins(batchPauseButton, 0, 10, 0, 0)
+        batchCard.addView(batchPauseButton)
+        batchCard.addView(UiKit.text(this, "暂停不会中断正在处理的音频：点击后停止派发新任务，等待当前并行转换全部完成，再进入暂停状态。", 11.5f, UiKit.TEXT_3).apply {
+            setPadding(0, UiKit.dp(this@MainActivity, 10), 0, 0)
+        })
+        batchCard.addView(UiKit.text(this, "转换前可选择输出格式，并决定保留源文件或用结果置换源文件。", 11.5f, UiKit.TEXT_3).apply {
+            setPadding(0, UiKit.dp(this@MainActivity, 10), 0, 0)
+        })
+        root.addView(batchCard)
+
+        root.addView(UiKit.spacer(this, 24))
+        root.addView(UiKit.sectionTitle(this, "工具", "诊断、应用识别与处理记录"))
+        root.addView(UiKit.spacer(this, 12))
+
+        val backgroundButton = UiKit.wideButton(this, "⚡", "允许后台耗电 / 电池优化")
+        val appScanButton = UiKit.wideButton(this, "⌁", "扫描已安装音乐 APP")
+        val historyButton = UiKit.wideButton(this, "◷", "转换 / 剪辑历史")
+        val diagnosticsButton = UiKit.wideButton(this, "✓", "FFmpeg 运行检测")
+        root.addView(backgroundButton)
+        UiKit.margins(appScanButton, 0, 10, 0, 0)
+        root.addView(appScanButton)
+        UiKit.margins(historyButton, 0, 10, 0, 0)
+        root.addView(historyButton)
+        UiKit.margins(diagnosticsButton, 0, 10, 0, 0)
+        root.addView(diagnosticsButton)
+
+        root.addView(UiKit.spacer(this, 18))
+        val tip = UiKit.card(this, 20)
+        tip.addView(UiKit.text(this, "扫描说明", 14f, UiKit.TEXT, true))
+        tip.addView(UiKit.text(this, "Android 11+ 会限制 Android/data、Android/obb 等受保护目录。选择内部存储根目录可以扫描系统允许访问的其他区域。批量扫描会自动跳过你在“忽略格式”中勾选的文件。", 11.5f, UiKit.TEXT_3).apply {
+            setPadding(0, UiKit.dp(this@MainActivity, 8), 0, 0)
+            setLineSpacing(0f, 1.2f)
+        })
+        
