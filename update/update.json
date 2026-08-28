@@ -3,14 +3,16 @@
   "versionName": "1.8.5.1-buildconfig-fix",
   "title": "MusicConverter v1.8.5.1",
   "changelog": [
-    "修复 compileDebugKotlin 的 BuildConfig 无法解析错误",
-    "版本号与版本名改为通过 Android PackageManager 获取",
-    "不再依赖 Gradle 自动生成 BuildConfig",
-    "GitHub 优先、腾讯文档备用更新逻辑保持不变"
+    "修复 compileDebugKotlin 中 BuildConfig 无法解析导致的编译失败",
+    "当前版本号与版本名改为通过 Android PackageManager 获取",
+    "版本检查严格优先访问 GitHub，GitHub 不可用时才调用腾讯文档备用源",
+    "保留夸克与蓝奏云双下载入口，选择蓝奏云时自动复制提取密码",
+    "普通更新可忽略，累计跨 2 个版本后再次提醒",
+    "保留强制更新启动门禁逻辑"
   ],
   "quarkUrl": "https://pan.quark.cn/s/bc7cbd178f5a",
-  "force": false,
-  "minSupportedVersionCode": 12,
   "lanzouUrl": "https://ssssvip.lanzoue.com/b0xxjc13c",
-  "lanzouPassword": "6666"
+  "lanzouPassword": "6666",
+  "force": false,
+  "minSupportedVersionCode": 12
 }
