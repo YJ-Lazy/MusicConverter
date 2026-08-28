@@ -1,16 +1,16 @@
 {
-  "versionCode": 14,
-  "versionName": "1.8.1-github-quark-lanzou-update",
-  "title": "MusicConverter v1.8.1",
+  "versionCode": 19,
+  "versionName": "1.8.5.1-buildconfig-fix",
+  "title": "MusicConverter v1.8.5.1",
   "changelog": [
-    "新增蓝奏云备用更新链",
-    "用户选择蓝奏云下载时自动复制提取密码",
-    "保留夸克网盘更新入口，可自由选择下载源",
-    "GitHub 仍只负责远程版本检查与更新清单"
+    "修复 compileDebugKotlin 的 BuildConfig 无法解析错误",
+    "版本号与版本名改为通过 Android PackageManager 获取",
+    "不再依赖 Gradle 自动生成 BuildConfig",
+    "GitHub 优先、腾讯文档备用更新逻辑保持不变"
   ],
   "quarkUrl": "https://pan.quark.cn/s/bc7cbd178f5a",
-  "lanzouUrl": "https://ssssvip.lanzoue.com/b0xxjc13c",
-  "lanzouPassword": "6666",
   "force": false,
-  "minSupportedVersionCode": 12
+  "minSupportedVersionCode": 12,
+  "lanzouUrl": "https://ssssvip.lanzoue.com/b0xxjc13c",
+  "lanzouPassword": "6666"
 }

@@ -20,8 +20,8 @@ android {
         minSdk 29
         targetSdk 35
 
-        versionCode 12
-        versionName "1.7.0-user-ignore-formats"
+        versionCode 19
+        versionName "1.8.5.1-buildconfig-fix"
 
 
         ndk {
@@ -68,6 +68,48 @@ android {
 }
 
 
+def generatedCurrentKotlinDir = file("$buildDir/generated/currentKotlin")
+
+android {
+    sourceSets {
+        main.java.srcDir generatedCurrentKotlinDir
+    }
+}
+
+tasks.register("restoreCurrentKotlinSources") {
+    def sources = [
+        [
+            (0..4).collect { file("compressed-src/MainActivity.kt.gz.b64.part${it}") },
+            new File(generatedCurrentKotlinDir, "com/musicconverter/miui/MainActivity.kt")
+        ],
+        [
+            (0..1).collect { file("compressed-src/RemoteUpdateManager.kt.gz.b64.part${it}") },
+            new File(generatedCurrentKotlinDir, "com/musicconverter/miui/update/RemoteUpdateManager.kt")
+        ]
+    ]
+
+    inputs.files(sources.collectMany { it[0] })
+    outputs.dir generatedCurrentKotlinDir
+
+    doLast {
+        sources.each { entry ->
+            def parts = entry[0]
+            def target = entry[1]
+            def encoded = parts.collect { it.getText("UTF-8").trim() }.join("")
+            def compressed = java.util.Base64.decoder.decode(encoded)
+            target.parentFile.mkdirs()
+            new java.util.zip.GZIPInputStream(new java.io.ByteArrayInputStream(compressed)).withCloseable { input ->
+                target.withOutputStream { output -> output << input }
+            }
+        }
+    }
+}
+
+tasks.named("preBuild").configure {
+    dependsOn tasks.named("restoreCurrentKotlinSources")
+}
+
+
 chaquopy {
     defaultConfig {
         version "3.11"
@@ -84,27 +126,10 @@ chaquopy {
 
 dependencies {
 
-    implementation 'io.github.jamaismagic.ffmpeg:ffmpeg-kit-lts-full-16kb:6.1.4'
+    implementation project(':ffmpeg-kit')
 
 
     implementation "androidx.room:room-runtime:2.6.1"
 
     kapt "androidx.room:room-compiler:2.6.1"
 }
-// music-geshizhuanhuan keeps the Kugou key as a binary XZ asset.
-// To keep this GitHub repository source-only, fetch the exact upstream MIT asset before build.
-def kugouKeyFile = file("src/main/python/assets/kugou_key.xz")
-def fetchKugouKey = tasks.register("fetchKugouKey") {
-    outputs.file(kugouKeyFile)
-    doLast {
-        if (!kugouKeyFile.exists()) {
-            kugouKeyFile.parentFile.mkdirs()
-            new URL("https://raw.githubusercontent.com/HRuiCcc/music-geshizhuanhuan/73e4b5fabb0fd28384f674bc3235eafbed6e487f/assets/kugou_key.xz")
-                    .withInputStream { input ->
-                        kugouKeyFile.withOutputStream { output -> output << input }
-                    }
-        }
-    }
-}
-
-tasks.named("preBuild").configure { dependsOn(fetchKugouKey) }

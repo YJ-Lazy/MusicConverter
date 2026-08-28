@@ -1,35 +1,52 @@
-# Changelog
+## 1.8.5.1
 
-## 1.7.0 - User-selectable ignored formats
+- 修复 `MainActivity.kt` 中 18 处 `BuildConfig` 无法解析导致的 Kotlin 编译失败。
+- 当前版本信息改为通过 Android `PackageManager` 获取。
+- 不再要求 app 模块生成 `BuildConfig`。
+- GitHub 主更新源、腾讯文档备用源、强制更新及忽略更新逻辑均保持不变。
 
-- Added a batch-scan setting for choosing which formats to ignore.
-- MP3 remains ignored by default to avoid redundant lossy MP3-to-MP3 transcoding.
-- Supports ignoring MP3, FLAC, M4A/AAC, WAV, OGG/OPUS, NCM, QQ encrypted formats, KGM/KGMA/VPR, and KWM.
-- Ignore preferences persist across launches and are enforced by both scanning and the background conversion service.
-- Single-file conversion and audio editing remain unaffected.
+## 1.8.5
 
-## 1.6.1 - Graceful pause
+- 版本检查调整为 GitHub 严格优先。
+- GitHub 可正常访问并解析时，不再请求腾讯文档。
+- GitHub 网络失败、HTTP 失败或清单解析失败时，自动调用腾讯文档备用源。
+- 其他更新策略保持不变。
 
-- Added “pause after current tasks finish”.
-- Running workers complete naturally; no new tasks are dispatched until resumed.
-- Pause/resume controls are available in both the app and the foreground notification.
+## 1.8.4
 
-## 1.6.0 - Parallel batch conversion
+- 新增腾讯文档备用版本检查地址。
+- GitHub 检查失败时自动回退到腾讯文档。
+- 腾讯文档兼容正文 JSON、`MUSICCONVERTER_UPDATE_BEGIN/END` 标记块及页面内嵌 JSON。
+- 保留夸克 / 蓝奏云下载源、强制更新门禁和忽略更新策略。
 
-- Added 1–4 parallel workers for batch conversion.
-- Added independent temp files and FFmpeg sessions per worker.
-- Notification reports active workers and batch progress.
+## 1.8.3
 
-## 1.5.x - Background conversion
+- 新增强制更新启动门禁。
+- 强制更新弹窗不可取消，只提供下载更新或退出应用。
+- 强制状态本地持久化，防止断网重启绕过。
+- 从外部下载页返回且仍是旧版本时自动再次拦截。
+- 普通可选更新的“忽略 2 个版本”逻辑保持不变。
 
-- Added Android foreground service, progress notification, wake lock, stop action, and battery-optimization entry point.
+## 1.8.2
 
-## 1.4.0 - Workspace UI
+- 新增“忽略更新”选项。
+- 忽略后只跨 1 个版本不再自动提醒，跨 2 个版本后恢复提醒。
+- 手动检查更新始终显示最新可用版本。
+- 强制更新不可忽略。
+- 更新下载源改为二级选择，保留夸克与蓝奏云。
 
-- Reorganized the UI into Home, Batch/Tools, and About pages.
+## 1.8.1
 
-## 1.3.x - Batch scan and source replacement
+- 新增蓝奏云备用更新链。
+- 选择蓝奏云下载时自动复制提取密码 `6666`。
+- 更新弹窗同时支持夸克与蓝奏云两个下载入口。
+- GitHub 继续作为远程版本清单来源。
 
-- Added recursive SAF directory scanning and one-tap batch conversion.
-- Added optional source-file replacement after successful conversion.
-- Added pause/resume behavior for editor preview.
+# CHANGELOG
+
+## 1.8.0
+
+- GitHub 远程版本清单检查。
+- 夸克网盘 APK 更新入口。
+- 每日一次自动检查与手动检查。
+- 第三页新增“软件更新”区域。
