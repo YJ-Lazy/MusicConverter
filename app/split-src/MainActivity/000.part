@@ -1,0 +1,380 @@
+package com.musicconverter.miui
+
+import android.app.Activity
+import android.app.AlertDialog
+import android.Manifest
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.content.pm.PackageManager
+import android.graphics.Color
+import android.net.Uri
+import android.os.Build
+import android.os.Bundle
+import android.os.PowerManager
+import android.provider.Settings
+import android.view.Gravity
+import android.view.View
+import android.widget.CheckBox
+import android.widget.FrameLayout
+import android.widget.ImageView
+import android.widget.LinearLayout
+import android.widget.RadioButton
+import android.widget.RadioGroup
+import android.widget.ScrollView
+import android.widget.TextView
+import android.widget.Toast
+import com.musicconverter.miui.core.*
+import com.musicconverter.miui.data.HistoryRepository
+import com.musicconverter.miui.editor.AudioEditorActivity
+import com.musicconverter.miui.scanner.MusicAppScanner
+import com.musicconverter.miui.scanner.ScannedAudio
+import com.musicconverter.miui.scanner.StorageAudioScanner
+import com.musicconverter.miui.service.BatchConversionService
+import com.musicconverter.miui.service.BatchProgressSnapshot
+import com.musicconverter.miui.ui.UiKit
+import com.musicconverter.miui.update.RemoteUpdateManager
+import com.musicconverter.miui.update.UpdateCheckResult
+
+class MainActivity : Activity() {
+    private val pickFileCode = 1001
+    private val pickTreeCode = 1002
+
+    /**
+     * 直接读取当前已安装 APK 的真实版本信息，
+     * 不依赖 Gradle 自动生成的版本常量类。
+     */
+    private val appVersionCode: Int by lazy {
+        @Suppress("DEPRECATION")
+        val info = packageManager.getPackageInfo(packageName, 0)
+        info.longVersionCode.toInt()
+    }
+
+    private val appVersionName: String by lazy {
+        @Suppress("DEPRECATION")
+        packageManager.getPackageInfo(packageName, 0).versionName ?: "unknown"
+    }
+
+    private var selected: PreparedAudio? = null
+    private var scannedBatch: List<ScannedAudio> = emptyList()
+    @Volatile private var batchRunning = false
+
+    private lateinit var selectedText: TextView
+    private lateinit var batchText: TextView
+    private lateinit var batchConvertButton: TextView
+    private lateinit var batchPauseButton: TextView
+    private lateinit var ignoreFormatsButton: TextView
+    private lateinit var status: TextView
+    private lateinit var deleteAsk: CheckBox
+    private var batchReceiverRegistered = false
+    private var mandatoryUpdateDialog: AlertDialog? = null
+    @Volatile private var mandatoryCheckRunning = false
+
+    private val batchProgressReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action != BatchConversionService.ACTION_PROGRESS) return
+            val snapshot = BatchProgressSnapshot(
+                running = intent.getBooleanExtra(BatchConversionService.EXTRA_RUNNING, false),
+                current = intent.getIntExtra(BatchConversionService.EXTRA_CURRENT, 0),
+                total = intent.getIntExtra(BatchConversionService.EXTRA_TOTAL, 0),
+                success = intent.getIntExtra(BatchConversionService.EXTRA_SUCCESS, 0),
+                failed = intent.getIntExtra(BatchConversionService.EXTRA_FAILED, 0),
+                replaced = intent.getIntExtra(BatchConversionService.EXTRA_REPLACED, 0),
+                replaceFailed = intent.getIntExtra(BatchConversionService.EXTRA_REPLACE_FAILED, 0),
+                currentName = intent.getStringExtra(BatchConversionService.EXTRA_CURRENT_NAME).orEmpty(),
+                replaceSource = intent.getBooleanExtra(BatchConversionService.EXTRA_REPLACE_SOURCE, false),
+                parallelism = intent.getIntExtra(BatchConversionService.EXTRA_PARALLELISM, 1),
+                active = intent.getIntExtra(BatchConversionService.EXTRA_ACTIVE, 0),
+                pausing = intent.getBooleanExtra(BatchConversionService.EXTRA_PAUSING, false),
+                paused = intent.getBooleanExtra(BatchConversionService.EXTRA_PAUSED, false),
+                done = intent.getBooleanExtra(BatchConversionService.EXTRA_DONE, false),
+                cancelled = intent.getBooleanExtra(BatchConversionService.EXTRA_CANCELLED, false),
+                message = intent.getStringExtra(BatchConversionService.EXTRA_MESSAGE).orEmpty()
+            )
+            applyBatchSnapshot(snapshot, showResult = snapshot.done)
+        }
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        window.statusBarColor = UiKit.BG
+        window.navigationBarColor = UiKit.BG
+        buildUi()
+
+        // 如果之前已经确认存在强制更新，启动时立即恢复门禁，防止断网绕过。
+        RemoteUpdateManager.cachedMandatoryUpdate(this, appVersionCode)?.let {
+            showMandatoryUpdateDialog(it)
+        }
+
+        // 强制更新检查每次启动都执行，不受普通“每天一次”检查节流影响。
+        checkMandatoryUpdateOnLaunch()
+
+        // 普通可选更新仍按原来的 24 小时间隔检查。
+        maybeCheckRemoteUpdate(manual = false)
+    }
+
+    override fun onStart() {
+        super.onStart()
+        if (!batchReceiverRegistered) {
+            val filter = IntentFilter(BatchConversionService.ACTION_PROGRESS)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                registerReceiver(batchProgressReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+            } else {
+                @Suppress("DEPRECATION")
+                registerReceiver(batchProgressReceiver, filter)
+            }
+            batchReceiverRegistered = true
+        }
+        applyBatchSnapshot(BatchConversionService.snapshot(), showResult = false)
+    }
+
+    override fun onStop() {
+        if (batchReceiverRegistered) {
+            runCatching { unregisterReceiver(batchProgressReceiver) }
+            batchReceiverRegistered = false
+        }
+        super.onStop()
+    }
+
+    override fun onResume() {
+        super.onResume()
+
+        // 用户从夸克 / 蓝奏云返回但尚未安装新版时，继续阻止进入 APP。
+        RemoteUpdateManager.cachedMandatoryUpdate(this, appVersionCode)?.let {
+            showMandatoryUpdateDialog(it)
+        }
+    }
+
+    private fun buildUi() {
+        val screen = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(UiKit.BG)
+        }
+
+        val pageHost = FrameLayout(this).apply {
+            setBackgroundColor(UiKit.BG)
+        }
+        screen.addView(pageHost, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            0,
+            1f
+        ))
+
+        val homePage = buildHomePage()
+        val batchPage = buildBatchPage()
+        val aboutPage = buildAboutPage()
+        val pages = listOf<View>(homePage, batchPage, aboutPage)
+        pages.forEach { pageHost.addView(it, FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            FrameLayout.LayoutParams.MATCH_PARENT
+        )) }
+
+        val statusWrap = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(UiKit.dp(this@MainActivity, 18), UiKit.dp(this@MainActivity, 10), UiKit.dp(this@MainActivity, 18), UiKit.dp(this@MainActivity, 8))
+        }
+        val statusDot = TextView(this).apply {
+            text = "●"
+            textSize = 10f
+            setTextColor(UiKit.SUCCESS)
+            gravity = Gravity.CENTER
+        }
+        statusWrap.addView(statusDot, LinearLayout.LayoutParams(UiKit.dp(this, 22), LinearLayout.LayoutParams.WRAP_CONTENT))
+        status = UiKit.text(this, "状态：等待任务", 12f, UiKit.TEXT_3, true)
+        statusWrap.addView(status, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+        screen.addView(statusWrap)
+
+        val navigation = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+            setPadding(UiKit.dp(this@MainActivity, 12), UiKit.dp(this@MainActivity, 8), UiKit.dp(this@MainActivity, 12), UiKit.dp(this@MainActivity, 12))
+            background = UiKit.rounded(UiKit.SURFACE, 26, this@MainActivity, UiKit.BORDER, 1)
+        }
+        UiKit.margins(navigation, 14, 0, 14, 12)
+
+        val homeNav = UiKit.navItem(this, "⌂", "首页")
+        val batchNav = UiKit.navItem(this, "≋", "批量")
+        val aboutNav = UiKit.navItem(this, "ⓘ", "介绍")
+        val navItems = listOf(homeNav, batchNav, aboutNav)
+        navItems.forEachIndexed { index, item ->
+            navigation.addView(item, LinearLayout.LayoutParams(0, UiKit.dp(this, 58), 1f).apply {
+                if (index > 0) leftMargin = UiKit.dp(this@MainActivity, 5)
+            })
+        }
+        screen.addView(navigation)
+
+        fun selectPage(index: Int) {
+            pages.forEachIndexed { i, view -> view.visibility = if (i == index) View.VISIBLE else View.GONE }
+            navItems.forEachIndexed { i, item -> UiKit.setNavSelected(item, i == index) }
+        }
+        homeNav.setOnClickListener { selectPage(0) }
+        batchNav.setOnClickListener { selectPage(1) }
+        aboutNav.setOnClickListener { selectPage(2) }
+        selectPage(0)
+
+        setContentView(screen)
+    }
+
+    private fun pageRoot(): Pair<ScrollView, LinearLayout> {
+        val scroll = ScrollView(this).apply {
+            isFillViewport = true
+            setBackgroundColor(UiKit.BG)
+            clipToPadding = false
+        }
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(UiKit.dp(this@MainActivity, 20), UiKit.dp(this@MainActivity, 22), UiKit.dp(this@MainActivity, 20), UiKit.dp(this@MainActivity, 30))
+        }
+        scroll.addView(root)
+        return scroll to root
+    }
+
+    private fun buildHomePage(): ScrollView {
+        val (scroll, root) = pageRoot()
+
+        val top = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        top.addView(LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            addView(UiKit.text(this@MainActivity, "单文件工作台", 27f, UiKit.TEXT, true))
+            addView(UiKit.text(this@MainActivity, "转换与剪辑，一次专注一首音乐", 12.5f, UiKit.TEXT_3).apply {
+                setPadding(0, UiKit.dp(this@MainActivity, 6), 0, 0)
+            })
+        }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+        val miniIcon = ImageView(this).apply {
+            setImageResource(R.mipmap.ic_launcher)
+            scaleType = ImageView.ScaleType.CENTER_CROP
+        }
+        top.addView(miniIcon, LinearLayout.LayoutParams(UiKit.dp(this, 48), UiKit.dp(this, 48)))
+        root.addView(top)
+
+        root.addView(UiKit.spacer(this, 22))
+        val fileCard = UiKit.card(this, 26).apply {
+            background = UiKit.rounded(Color.parseColor("#17142B"), 26, this@MainActivity, Color.parseColor("#352E62"), 1)
+        }
+        fileCard.addView(UiKit.text(this, "当前音乐", 12f, Color.parseColor("#AFA6E6"), true))
+        val fileRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, UiKit.dp(this@MainActivity, 13), 0, 0)
+        }
+        val fileIcon = UiKit.text(this, "♫", 27f, Color.parseColor("#D5CEFF"), true).apply {
+            gravity = Gravity.CENTER
+            background = UiKit.rounded(Color.parseColor("#2B2450"), 18, this@MainActivity)
+        }
+        fileRow.addView(fileIcon, LinearLayout.LayoutParams(UiKit.dp(this, 54), UiKit.dp(this, 54)))
+        selectedText = UiKit.text(this, "尚未选择文件\n选择一首音乐开始处理", 14f, Color.parseColor("#D3CEE8")).apply {
+            setLineSpacing(0f, 1.18f)
+            setPadding(UiKit.dp(this@MainActivity, 14), 0, 0, 0)
+        }
+        fileRow.addView(selectedText, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+        fileCard.addView(fileRow)
+        root.addView(fileCard)
+
+        root.addView(UiKit.spacer(this, 18))
+        val selectButton = UiKit.wideButton(this, "+", "选择音乐文件", true)
+        root.addView(selectButton)
+
+        root.addView(UiKit.spacer(this, 20))
+        root.addView(UiKit.sectionTitle(this, "处理方式", "转换格式或进入剪辑器"))
+        root.addView(UiKit.spacer(this, 12))
+
+        val convertButton = UiKit.actionTile(this, "⇄", "转换格式", "MP3 · FLAC · M4A · WAV", true)
+        val editButton = UiKit.actionTile(this, "✂", "编辑 / 剪辑", "选区试听 · 暂停 · 保存")
+        val actionRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        actionRow.addView(convertButton, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
+            rightMargin = UiKit.dp(this@MainActivity, 6)
+        })
+        actionRow.addView(editButton, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
+            leftMargin = UiKit.dp(this@MainActivity, 6)
+        })
+        root.addView(actionRow)
+
+        deleteAsk = CheckBox(this).apply {
+            text = "处理完成后询问源文件操作"
+            textSize = 13f
+            setTextColor(UiKit.TEXT_2)
+            isChecked = true
+            setPadding(0, UiKit.dp(this@MainActivity, 17), 0, 0)
+            buttonTintList = android.content.res.ColorStateList(
+                arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()),
+                intArrayOf(UiKit.ACCENT, UiKit.TEXT_3)
+            )
+        }
+        root.addView(deleteAsk)
+        root.addView(UiKit.text(this, "完成后可保留、删除，或用处理结果置换源文件。", 11.5f, UiKit.TEXT_3).apply {
+            setPadding(UiKit.dp(this@MainActivity, 30), 0, 0, 0)
+        })
+
+        root.addView(UiKit.spacer(this, 22))
+        val localCard = UiKit.card(this, 22)
+        localCard.addView(UiKit.text(this, "本地处理", 15f, UiKit.TEXT, true))
+        localCard.addView(UiKit.text(this, "文件解密、转换与剪辑均在设备端执行。输出默认保存至 Music/MusicConverter。", 12f, UiKit.TEXT_3).apply {
+            setPadding(0, UiKit.dp(this@MainActivity, 8), 0, 0)
+            setLineSpacing(0f, 1.2f)
+        })
+        root.addView(localCard)
+
+        selectButton.setOnClickListener { chooseFile() }
+        convertButton.setOnClickListener { showConvertDialog() }
+        editButton.setOnClickListener { openEditor() }
+        return scroll
+    }
+
+    private fun buildBatchPage(): ScrollView {
+        val (scroll, root) = pageRoot()
+
+        root.addView(UiKit.text(this, "批量与工具", 27f, UiKit.TEXT, true))
+        root.addView(UiKit.text(this, "扫描一个目录，一次处理全部支持的音乐", 12.5f, UiKit.TEXT_3).apply {
+            setPadding(0, UiKit.dp(this@MainActivity, 6), 0, 0)
+        })
+
+        root.addView(UiKit.spacer(this, 22))
+        val scanButton = UiKit.wideButton(this, "⌕", "扫描磁盘 / 音乐目录", true)
+        root.addView(scanButton)
+
+        ignoreFormatsButton = UiKit.wideButton(
+            this,
+            "⊘",
+            "忽略格式 · ${IgnoredFormatPreferences.summary(this)}"
+        )
+        UiKit.margins(ignoreFormatsButton, 0, 10, 0, 0)
+        root.addView(ignoreFormatsButton)
+
+        root.addView(UiKit.spacer(this, 14))
+        val batchCard = UiKit.card(this, 26)
+        val batchHead = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        val batchIcon = UiKit.text(this, "≋", 25f, Color.parseColor("#C8BFFF"), true).apply {
+            gravity = Gravity.CENTER
+            background = UiKit.rounded(Color.parseColor("#292344"), 18, this@MainActivity)
+        }
+        batchHead.addView(batchIcon, LinearLayout.LayoutParams(UiKit.dp(this, 52), UiKit.dp(this, 52)))
+        batchText = UiKit.text(this, "尚未扫描目录\n选择内部存储或音乐目录开始", 13.5f, UiKit.TEXT_2).apply {
+            setLineSpacing(0f, 1.18f)
+            setPadding(UiKit.dp(this@MainActivity, 14), 0, 0, 0)
+        }
+        batchHead.addView(batchText, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+        batchCard.addView(batchHead)
+        batchConvertButton = UiKit.wideButton(this, "⇉", "一键转换扫描结果", true).apply {
+            isEnabled = false
+            alpha = 0.45f
+        }
+        UiKit.margins(batchConvertButton, 0, 15, 0, 0)
+        batchCard.addView(batchConvertButton)
+        batchPauseButton = UiKit.wideButton(this, "Ⅱ", "完成当前任务后暂停").apply {
+            isEnabled = false
+            alpha = 0.45f
+        }
+        UiKit.margins(batchPauseButton, 0, 10, 0, 0)
+        batchCard.addView(batchPauseButton)
+        batchCard.addView(UiKit.text(this, "暂停不会中断正在处理的音频：点击后停止派发新任务，等待当前并行转换全部完成，再进入暂停状态。", 11.5f, UiKit.TEXT_3).apply {
+            setPadding(0, UiKit.dp(this@MainActivity, 10), 0, 0)
+        })
+        batchCard.add
