@@ -1,0 +1,191 @@
+            setTextColor(UiKit.TEXT)
+            isChecked = false
+            setPadding(0, UiKit.dp(this@MainActivity, 12), 0, 0)
+            buttonTintList = android.content.res.ColorStateList(
+                arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()),
+                intArrayOf(UiKit.ACCENT, UiKit.TEXT_3)
+            )
+        }
+        content.addView(replaceSource)
+        content.addView(UiKit.text(
+            this,
+            "置换模式：只有转换成功后才尝试在原位置写入新音频并按目标格式重命名。若文件提供方不支持写入/重命名，会保留源文件和已生成的输出，不会强制删除。",
+            11.5f,
+            UiKit.TEXT_3
+        ).apply { setPadding(0, UiKit.dp(this@MainActivity, 5), 0, 0) })
+        content.addView(UiKit.text(
+            this,
+            "共 ${files.size} 个 · 加密 $encrypted · 普通 ${files.size - encrypted}\n默认输出：Music/MusicConverter",
+            12f,
+            UiKit.TEXT_2
+        ).apply { setPadding(0, UiKit.dp(this@MainActivity, 14), 0, 0) })
+
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("批量转换 · ${files.size} 个文件")
+            .setView(content)
+            .setNegativeButton("取消", null)
+            .setPositiveButton("确认转换", null)
+            .create()
+
+        dialog.setOnShowListener {
+            dialog.getButton(AlertDialog.BUTTON_NEGATIVE)?.isAllCaps = false
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE)?.apply {
+                isAllCaps = false
+                setOnClickListener {
+                    val checkedId = formatGroup.checkedRadioButtonId
+                    val checked = formatGroup.findViewById<RadioButton>(checkedId)
+                    val selectedFormat = (checked?.tag as? AudioOutputFormat) ?: AudioOutputFormat.MP3
+                    val replace = replaceSource.isChecked
+                    val workerChecked = workerGroup.findViewById<RadioButton>(workerGroup.checkedRadioButtonId)
+                    val workers = (workerChecked?.tag as? Int) ?: recommendedWorkers
+                    dialog.dismiss()
+                    runBatchConversion(files, selectedFormat, replace, workers)
+                }
+            }
+        }
+        dialog.show()
+    }
+
+    private fun runBatchConversion(files: List<ScannedAudio>, target: AudioOutputFormat, replaceSource: Boolean, parallelism: Int) {
+        if (batchRunning || BatchConversionService.snapshot().running) {
+            toast("批量任务正在运行")
+            return
+        }
+        requestNotificationPermissionIfNeeded()
+
+        batchRunning = true
+        batchConvertButton.isEnabled = false
+        batchConvertButton.alpha = 0.55f
+        if (::batchPauseButton.isInitialized) {
+            batchPauseButton.isEnabled = true
+            batchPauseButton.alpha = 1f
+            batchPauseButton.text = "Ⅱ   完成当前任务后暂停"
+        }
+        batchText.text = "正在启动后台转换…\n目标格式：${target.label} · ${parallelism} 路并行${if (replaceSource) " · 置换源文件" else " · 保留源文件"}"
+        status.text = "状态：正在启动后台转换服务…"
+
+        val started = BatchConversionService.start(this, files, target, replaceSource, parallelism)
+        if (!started) {
+            batchRunning = false
+            batchConvertButton.isEnabled = scannedBatch.isNotEmpty()
+            batchConvertButton.alpha = if (scannedBatch.isNotEmpty()) 1f else 0.45f
+            status.text = "状态：后台任务启动失败"
+            toast("无法启动后台转换，请检查系统后台限制")
+        }
+    }
+
+    private fun applyBatchSnapshot(snapshot: BatchProgressSnapshot, showResult: Boolean) {
+        if (!::batchText.isInitialized || !::batchConvertButton.isInitialized || !::status.isInitialized) return
+        batchRunning = snapshot.running
+        if (snapshot.running) {
+            batchConvertButton.isEnabled = false
+            batchConvertButton.alpha = 0.55f
+
+            if (::batchPauseButton.isInitialized) {
+                batchPauseButton.isEnabled = true
+                batchPauseButton.alpha = 1f
+                batchPauseButton.text = when {
+                    snapshot.paused -> "▶   继续批量转换"
+                    snapshot.pausing -> "▶   取消暂停并继续"
+                    else -> "Ⅱ   完成当前任务后暂停"
+                }
+            }
+
+            val replaceText = if (snapshot.replaceSource) " · 已置换 ${snapshot.replaced}" else ""
+            batchText.text = when {
+                snapshot.paused -> {
+                    "批量任务已暂停 ${snapshot.current} / ${snapshot.total}\n剩余 ${snapshot.total - snapshot.current} 个 · 成功 ${snapshot.success} · 失败 ${snapshot.failed}$replaceText\n点击“继续批量转换”恢复"
+                }
+                snapshot.pausing -> {
+                    "正在等待暂停 ${snapshot.current} / ${snapshot.total}\n当前仍有 ${snapshot.active} 个转换运行 · 完成后自动暂停$replaceText\n${snapshot.currentName}"
+                }
+                else -> {
+                    "正在后台转换 ${snapshot.current} / ${snapshot.total}\n${snapshot.parallelism} 路并行 · 活跃 ${snapshot.active} · 成功 ${snapshot.success} · 失败 ${snapshot.failed}$replaceText\n${snapshot.currentName}"
+                }
+            }
+            status.text = when {
+                snapshot.paused -> "状态：批量转换已暂停 · ${snapshot.current}/${snapshot.total}"
+                snapshot.pausing -> "状态：等待当前 ${snapshot.active} 个任务完成后暂停"
+                else -> "状态：并行转换 ${snapshot.current}/${snapshot.total} · 活跃 ${snapshot.active}/${snapshot.parallelism}"
+            }
+            return
+        }
+
+        if (::batchPauseButton.isInitialized) {
+            batchPauseButton.isEnabled = false
+            batchPauseButton.alpha = 0.45f
+            batchPauseButton.text = "Ⅱ   完成当前任务后暂停"
+        }
+
+        if (snapshot.done) {
+            if (snapshot.replaceSource) {
+                scannedBatch = emptyList()
+                batchConvertButton.isEnabled = false
+                batchConvertButton.alpha = 0.45f
+                batchText.text = if (snapshot.cancelled) {
+                    "批量任务已停止\n成功 ${snapshot.success} · 失败 ${snapshot.failed} · 已置换 ${snapshot.replaced}\n请重新扫描目录以刷新文件列表"
+                } else {
+                    "批量任务完成\n成功 ${snapshot.success} · 失败 ${snapshot.failed} · 已置换 ${snapshot.replaced} · 置换失败 ${snapshot.replaceFailed}\n请重新扫描目录以刷新文件列表"
+                }
+            } else {
+                batchConvertButton.isEnabled = scannedBatch.isNotEmpty()
+                batchConvertButton.alpha = if (scannedBatch.isNotEmpty()) 1f else 0.45f
+                batchText.text = if (snapshot.cancelled) {
+                    "批量任务已停止\n成功 ${snapshot.success} · 失败 ${snapshot.failed} · 共 ${snapshot.total} 个"
+                } else {
+                    "批量任务完成\n成功 ${snapshot.success} · 失败 ${snapshot.failed} · 共 ${snapshot.total} 个"
+                }
+            }
+            status.text = if (snapshot.cancelled) {
+                "状态：批量任务已停止 · 成功 ${snapshot.success} · 失败 ${snapshot.failed}"
+            } else {
+                "状态：批量转换完成 · 成功 ${snapshot.success} · 失败 ${snapshot.failed}"
+            }
+            if (showResult && snapshot.message.isNotBlank() && !isFinishing) {
+                AlertDialog.Builder(this)
+                    .setTitle(if (snapshot.cancelled) "批量任务已停止" else "批量任务结果")
+                    .setMessage(snapshot.message)
+                    .setPositiveButton("确定", null)
+                    .show()
+            }
+        }
+    }
+
+    private fun requestNotificationPermissionIfNeeded() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) {
+            requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1401)
+        }
+    }
+
+    private fun requestBackgroundBatteryAccess() {
+        val power = getSystemService(Context.POWER_SERVICE) as PowerManager
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
+            toast("当前 Android 版本无需设置电池优化")
+            return
+        }
+        if (power.isIgnoringBatteryOptimizations(packageName)) {
+            AlertDialog.Builder(this)
+                .setTitle("后台耗电已允许")
+                .setMessage("系统已允许 MusicConverter 忽略电池优化。批量转换仍会使用前台服务和常驻进度通知。\n\n在 MIUI / HyperOS 上，如仍被清理，可再到应用信息中允许后台运行或将电池策略设为“无限制”。")
+                .setPositiveButton("确定", null)
+                .show()
+            return
+        }
+
+        AlertDialog.Builder(this)
+            .setTitle("允许后台耗电")
+            .setMessage("长时间批量转换时，系统省电策略可能暂停或结束任务。下一步会打开系统授权页，请允许 MusicConverter 忽略电池优化。\n\n转换期间仍会显示前台服务通知，并只在任务运行时保持 CPU 唤醒。")
+            .setNegativeButton("取消", null)
+            .setPositiveButton("去授权") { _, _ ->
+                try {
+                    startActivity(Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                        data = Uri.parse("package:$packageName")
+                    })
+                } catch (_: Throwable) {
+                    try {
+                        startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+                    } catch (_: Throwable) {
+                        startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                            data = Uri.
