@@ -1,14 +1,16 @@
 {
-  "versionCode": 13,
-  "versionName": "1.8.0-github-quark-update",
-  "title": "MusicConverter v1.8.0",
+  "versionCode": 14,
+  "versionName": "1.8.1-github-quark-lanzou-update",
+  "title": "MusicConverter v1.8.1",
   "changelog": [
-    "新增 GitHub 远程版本检查",
-    "新增夸克网盘 APK 更新入口",
-    "每天最多自动检查一次，并支持手动检查更新",
-    "更新清单和 APK 下载来源分离，便于后续维护"
+    "新增蓝奏云备用更新链",
+    "用户选择蓝奏云下载时自动复制提取密码",
+    "保留夸克网盘更新入口，可自由选择下载源",
+    "GitHub 仍只负责远程版本检查与更新清单"
   ],
   "quarkUrl": "https://pan.quark.cn/s/bc7cbd178f5a",
+  "lanzouUrl": "https://ssssvip.lanzoue.com/b0xxjc13c",
+  "lanzouPassword": "6666",
   "force": false,
   "minSupportedVersionCode": 12
 }
