@@ -1,0 +1,234 @@
+pdateManager.clearMandatoryUpdate(this)
+                        if (manual) {
+                            AlertDialog.Builder(this)
+                                .setTitle("已经是最新版本")
+                                .setMessage("当前版本：v${appVersionName}\nGitHub 暂未发布更高版本。")
+                                .setPositiveButton("确定", null)
+                                .show()
+                        }
+                        status.text = "状态：当前已是最新版本"
+                    }
+                    is UpdateCheckResult.Error -> {
+                        if (manual) {
+                            AlertDialog.Builder(this)
+                                .setTitle("检查更新失败")
+                                .setMessage("无法读取 GitHub 更新清单。\n\n${result.message}")
+                                .setPositiveButton("确定", null)
+                                .show()
+                        }
+                        status.text = "状态：更新检查失败"
+                    }
+                }
+            }
+        }.start()
+    }
+
+    private fun showRemoteUpdateDialog(info: com.musicconverter.miui.update.RemoteUpdateInfo) {
+        val mustUpdate = RemoteUpdateManager.isMandatory(info, appVersionCode)
+        if (mustUpdate) {
+            RemoteUpdateManager.cacheMandatoryUpdate(this, info)
+            showMandatoryUpdateDialog(info)
+            return
+        }
+
+        val hasQuark = info.quarkUrl.startsWith("https://pan.quark.cn/")
+        val hasLanzou = info.lanzouUrl.isNotBlank()
+
+        val message = buildString {
+            append("当前版本：v${appVersionName}\n")
+            append("最新版本：v${info.versionName}\n")
+            append("下载来源：")
+            val sources = mutableListOf<String>()
+            if (hasQuark) sources += "夸克网盘"
+            if (hasLanzou) sources += "蓝奏云"
+            append(sources.joinToString(" / "))
+            if (hasLanzou && info.lanzouPassword.isNotBlank()) {
+                append("\n蓝奏云密码：${info.lanzouPassword}（选择后自动复制）")
+            }
+            append("\n\n")
+            if (info.changelog.isNotBlank()) append(info.changelog)
+            append("\n\n选择“忽略更新”后：下一个版本不会再自动提醒；累计发布 2 个新版本后才重新提醒。")
+        }
+
+        val builder = AlertDialog.Builder(this)
+            .setTitle(if (info.title.isBlank()) "发现新版本" else info.title)
+            .setMessage(message)
+            .setPositiveButton("下载更新") { _, _ ->
+                showUpdateDownloadSourceDialog(info)
+            }
+
+        builder.setNegativeButton("忽略更新") { _, _ ->
+            RemoteUpdateManager.ignoreVersion(this, info.versionCode)
+            status.text = "状态：已忽略 v${info.versionName}，累计再发布 2 个版本后提醒"
+            toast("已忽略本次更新；再发布 2 个版本后会重新提醒")
+        }
+        builder.setNeutralButton("稍后", null)
+        builder.show()
+    }
+
+    private fun showMandatoryUpdateDialog(info: com.musicconverter.miui.update.RemoteUpdateInfo) {
+        if (appVersionCode >= maxOf(info.versionCode, info.minSupportedVersionCode)) {
+            RemoteUpdateManager.clearMandatoryUpdate(this)
+            mandatoryUpdateDialog?.dismiss()
+            mandatoryUpdateDialog = null
+            return
+        }
+
+        if (mandatoryUpdateDialog?.isShowing == true) return
+
+        val message = buildString {
+            append("当前版本：v${appVersionName}\n")
+            append("必须更新到：v${info.versionName}\n\n")
+            if (info.changelog.isNotBlank()) {
+                append(info.changelog)
+                append("\n\n")
+            }
+            append("此版本为强制更新。继续使用 MusicConverter 前必须完成更新。\n")
+            append("你可以前往下载新版，或退出应用。")
+        }
+
+        mandatoryUpdateDialog = AlertDialog.Builder(this)
+            .setTitle(if (info.title.isBlank()) "必须更新" else info.title)
+            .setMessage(message)
+            .setCancelable(false)
+            .setPositiveButton("下载更新") { _, _ ->
+                showUpdateDownloadSourceDialog(info)
+            }
+            .setNegativeButton("退出应用") { _, _ ->
+                finishAffinity()
+            }
+            .create()
+            .also { dialog ->
+                dialog.setCanceledOnTouchOutside(false)
+                dialog.setOnDismissListener {
+                    mandatoryUpdateDialog = null
+
+                    // 只要仍未安装要求版本且 Activity 还活着，就重新恢复门禁。
+                    if (!isFinishing && !isDestroyed) {
+                        RemoteUpdateManager.cachedMandatoryUpdate(
+                            this,
+                            appVersionCode
+                        )?.let { cached ->
+                            window.decorView.postDelayed({
+                                if (!isFinishing && !isDestroyed) {
+                                    showMandatoryUpdateDialog(cached)
+                                }
+                            }, 250)
+                        }
+                    }
+                }
+                dialog.show()
+            }
+    }
+
+    private fun showUpdateDownloadSourceDialog(info: com.musicconverter.miui.update.RemoteUpdateInfo) {
+        val labels = mutableListOf<String>()
+        val actions = mutableListOf<() -> Unit>()
+
+        if (info.quarkUrl.startsWith("https://pan.quark.cn/")) {
+            labels += "夸克网盘"
+            actions += { openQuarkUpdate(info.quarkUrl) }
+        }
+        if (info.lanzouUrl.isNotBlank()) {
+            labels += if (info.lanzouPassword.isBlank()) {
+                "蓝奏云"
+            } else {
+                "蓝奏云（自动复制密码 ${info.lanzouPassword}）"
+            }
+            actions += { openLanzouUpdate(info.lanzouUrl, info.lanzouPassword) }
+        }
+
+        if (labels.isEmpty()) {
+            toast("没有可用的更新下载源")
+            return
+        }
+
+        if (labels.size == 1) {
+            actions.first().invoke()
+            return
+        }
+
+        AlertDialog.Builder(this)
+            .setTitle("选择下载来源")
+            .setItems(labels.toTypedArray()) { _, which -> actions[which].invoke() }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+
+    private fun openQuarkUpdate(url: String) {
+        if (!url.startsWith("https://pan.quark.cn/")) {
+            toast("夸克更新链接无效")
+            return
+        }
+        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+        runCatching { startActivity(intent) }
+            .onFailure { toast("无法打开夸克链接，请确认已安装浏览器或夸克 APP") }
+    }
+
+    private fun openLanzouUpdate(url: String, password: String) {
+        val host = runCatching { Uri.parse(url).host.orEmpty().lowercase() }.getOrDefault("")
+        if (!url.startsWith("https://") || !host.contains("lanzou")) {
+            toast("蓝奏云更新链接无效")
+            return
+        }
+
+        if (password.isNotBlank()) {
+            val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+            clipboard.setPrimaryClip(
+                android.content.ClipData.newPlainText("蓝奏云提取密码", password)
+            )
+            toast("蓝奏云密码 $password 已复制")
+        }
+
+        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+        runCatching { startActivity(intent) }
+            .onFailure { toast("无法打开蓝奏云链接，请确认已安装浏览器") }
+    }
+
+    private fun chooseFile() {
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "*/*"
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
+        }
+        startActivityForResult(intent, pickFileCode)
+    }
+
+    private fun showIgnoredFormatsDialog() {
+        val options = IgnoredFormatPreferences.options
+        val selected = IgnoredFormatPreferences.selectedIds(this).toMutableSet()
+        val labels = options.map { it.label }.toTypedArray()
+        val checked = BooleanArray(options.size) { options[it].id in selected }
+
+        AlertDialog.Builder(this)
+            .setTitle("选择批量扫描要忽略的格式")
+            .setMessage("勾选后的格式不会加入磁盘扫描结果，也不会进入一键批量转换。单文件转换和音频剪辑不受影响。")
+            .setMultiChoiceItems(labels, checked) { _, which, isChecked ->
+                val id = options[which].id
+                if (isChecked) selected += id else selected -= id
+            }
+            .setNeutralButton("全部取消") { _, _ ->
+                IgnoredFormatPreferences.saveSelectedIds(this, emptySet())
+                onIgnoredFormatsChanged()
+            }
+            .setNegativeButton("取消", null)
+            .setPositiveButton("保存") { _, _ ->
+                IgnoredFormatPreferences.saveSelectedIds(this, selected)
+                onIgnoredFormatsChanged()
+            }
+            .show()
+    }
+
+    private fun onIgnoredFormatsChanged() {
+        ignoreFormatsButton.text = "⊘   忽略格式 · ${IgnoredFormatPreferences.summary(this)}"
+        scannedBatch = emptyList()
+        batchConvertButton.isEnabled = false
+        batchConvertButton.alpha = 0.45f
+        batchText.text = "忽略格式已更新\n请重新扫描目录以应用新规则"
+        status.text = "状态：忽略格式已更新 · 等待重新扫描"
+    }
+
+    private fun chooseScanFolder() {
+        AlertDialog.Builder(this)
+            .setTitle("扫描磁盘")
+        
