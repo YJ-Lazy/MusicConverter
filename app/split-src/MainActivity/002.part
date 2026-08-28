@@ -1,0 +1,189 @@
+root.addView(tip)
+
+        scanButton.setOnClickListener { chooseScanFolder() }
+        ignoreFormatsButton.setOnClickListener { showIgnoredFormatsDialog() }
+        batchConvertButton.setOnClickListener { showBatchConvertDialog() }
+        batchPauseButton.setOnClickListener {
+            val snapshot = BatchConversionService.snapshot()
+            val ok = if (snapshot.paused || snapshot.pausing) {
+                BatchConversionService.requestResume(this)
+            } else {
+                BatchConversionService.requestPause(this)
+            }
+            if (!ok) toast("当前没有可暂停或继续的批量任务")
+        }
+        backgroundButton.setOnClickListener { requestBackgroundBatteryAccess() }
+        appScanButton.setOnClickListener { scanMusicApps() }
+        historyButton.setOnClickListener { showHistory() }
+        diagnosticsButton.setOnClickListener {
+            status.text = "状态：正在检测 FFmpeg…"
+            Thread {
+                val result = FfmpegEngine.availability()
+                runOnUiThread { status.text = "状态：${result.message}" }
+            }.start()
+        }
+        return scroll
+    }
+
+    private fun buildAboutPage(): ScrollView {
+        val (scroll, root) = pageRoot()
+
+        val intro = UiKit.card(this, 28).apply {
+            gravity = Gravity.CENTER_HORIZONTAL
+            background = UiKit.rounded(Color.parseColor("#17142B"), 28, this@MainActivity, Color.parseColor("#352E62"), 1)
+        }
+        val icon = ImageView(this).apply {
+            setImageResource(R.mipmap.ic_launcher)
+            scaleType = ImageView.ScaleType.CENTER_CROP
+        }
+        intro.addView(icon, LinearLayout.LayoutParams(UiKit.dp(this, 76), UiKit.dp(this, 76)).apply {
+            gravity = Gravity.CENTER_HORIZONTAL
+        })
+        intro.addView(UiKit.text(this, "MusicConverter MIUI Pro", 22f, UiKit.TEXT, true).apply {
+            gravity = Gravity.CENTER
+            setPadding(0, UiKit.dp(this@MainActivity, 14), 0, 0)
+        })
+        intro.addView(UiKit.text(this, "v${appVersionName}", 12f, Color.parseColor("#B9B1E8"), true).apply {
+            gravity = Gravity.CENTER
+            setPadding(0, UiKit.dp(this@MainActivity, 6), 0, 0)
+        })
+        intro.addView(UiKit.text(this, "为本地音乐解密、格式转换与轻量音频编辑打造的设备端工具。", 13f, Color.parseColor("#CBC5EA")).apply {
+            gravity = Gravity.CENTER
+            setPadding(0, UiKit.dp(this@MainActivity, 16), 0, 0)
+            setLineSpacing(0f, 1.2f)
+        })
+        root.addView(intro)
+
+        root.addView(UiKit.spacer(this, 22))
+        root.addView(UiKit.sectionTitle(this, "能力"))
+        root.addView(UiKit.spacer(this, 12))
+        val capability = UiKit.card(this, 22)
+        capability.addView(UiKit.infoRow(this, "⇄", "格式转换", "MP3 / FLAC / M4A / WAV / OGG"))
+        capability.addView(UiKit.infoRow(this, "◇", "加密格式", "NCM / QMC / KGM / KWM 等").also { UiKit.margins(it, 0, 12, 0, 0) })
+        capability.addView(UiKit.infoRow(this, "✂", "音频剪辑", "选区、试听、暂停与导出").also { UiKit.margins(it, 0, 12, 0, 0) })
+        capability.addView(UiKit.infoRow(this, "≋", "批量处理", "目录扫描后统一转换").also { UiKit.margins(it, 0, 12, 0, 0) })
+        capability.addView(UiKit.infoRow(this, "⚡", "后台转换", "前台服务通知显示进度，并可申请忽略电池优化").also { UiKit.margins(it, 0, 12, 0, 0) })
+        root.addView(capability)
+
+        root.addView(UiKit.spacer(this, 18))
+        val updateCard = UiKit.card(this, 22)
+        updateCard.addView(UiKit.text(this, "软件更新", 15f, UiKit.TEXT, true))
+        updateCard.addView(UiKit.text(
+            this,
+            "当前：v${appVersionName}\n版本检查：GitHub 优先 · 腾讯文档备用 · APK 下载：夸克 / 蓝奏云",
+            12f,
+            UiKit.TEXT_3
+        ).apply {
+            setPadding(0, UiKit.dp(this@MainActivity, 8), 0, 0)
+            setLineSpacing(0f, 1.2f)
+        })
+        val checkUpdateButton = UiKit.wideButton(this, "↻", "检查更新", true)
+        UiKit.margins(checkUpdateButton, 0, 14, 0, 0)
+        updateCard.addView(checkUpdateButton)
+        updateCard.addView(UiKit.text(
+            this,
+            "应用每天最多自动检查一次版本。优先读取 GitHub 更新清单；只要 GitHub 能正常返回并解析，就直接采用 GitHub 结果。仅当 GitHub 无法访问、HTTP 请求失败或清单解析失败时，才调用腾讯文档备用源。发现更新后可选择下载、稍后处理或忽略本次更新；若忽略，则累计更新 2 个版本后再次自动提醒。手动检查更新始终可用。",
+            11.5f,
+            UiKit.TEXT_3
+        ).apply {
+            setPadding(0, UiKit.dp(this@MainActivity, 10), 0, 0)
+            setLineSpacing(0f, 1.2f)
+        })
+        root.addView(updateCard)
+        checkUpdateButton.setOnClickListener { maybeCheckRemoteUpdate(manual = true) }
+
+        root.addView(UiKit.spacer(this, 18))
+        val privacy = UiKit.card(this, 22)
+        privacy.addView(UiKit.text(this, "隐私与文件", 15f, UiKit.TEXT, true))
+        privacy.addView(UiKit.text(this, "核心处理在本机完成。应用通过 Android SAF 访问用户主动选择的文件或目录，并遵守系统存储权限。", 12f, UiKit.TEXT_3).apply {
+            setPadding(0, UiKit.dp(this@MainActivity, 8), 0, 0)
+            setLineSpacing(0f, 1.2f)
+        })
+        root.addView(privacy)
+
+        root.addView(UiKit.spacer(this, 18))
+        val credits = UiKit.card(this, 22)
+        credits.addView(UiKit.text(this, "开源组件", 15f, UiKit.TEXT, true))
+        credits.addView(UiKit.text(this, "FFmpeg / FFmpegKit · Chaquopy · Room · music-geshizhuanhuan\n详细许可信息见项目 THIRD_PARTY_NOTICES.md。", 12f, UiKit.TEXT_3).apply {
+            setPadding(0, UiKit.dp(this@MainActivity, 8), 0, 0)
+            setLineSpacing(0f, 1.2f)
+        })
+        root.addView(credits)
+
+        root.addView(UiKit.spacer(this, 18))
+        root.addView(UiKit.text(this, "请仅处理你有权访问和转换的本地音频文件。", 11.5f, UiKit.TEXT_3).apply {
+            gravity = Gravity.CENTER
+        })
+        return scroll
+    }
+
+    private fun checkMandatoryUpdateOnLaunch() {
+        if (mandatoryCheckRunning) return
+        mandatoryCheckRunning = true
+
+        Thread {
+            val result = RemoteUpdateManager.check(appVersionCode)
+            mandatoryCheckRunning = false
+
+            runOnUiThread {
+                when (result) {
+                    is UpdateCheckResult.Available -> {
+                        if (RemoteUpdateManager.isMandatory(result.info, appVersionCode)) {
+                            RemoteUpdateManager.cacheMandatoryUpdate(this, result.info)
+                            showMandatoryUpdateDialog(result.info)
+                            status.text = "状态：检测到必须更新版本 v${result.info.versionName}"
+                        }
+                    }
+                    is UpdateCheckResult.Latest -> {
+                        RemoteUpdateManager.clearMandatoryUpdate(this)
+                    }
+                    is UpdateCheckResult.Error -> {
+                        RemoteUpdateManager.cachedMandatoryUpdate(this, appVersionCode)?.let {
+                            showMandatoryUpdateDialog(it)
+                        }
+                    }
+                }
+            }
+        }.start()
+    }
+
+    private fun maybeCheckRemoteUpdate(manual: Boolean) {
+        RemoteUpdateManager.clearIgnoredVersionIfInstalled(this, appVersionCode)
+        if (!manual && !RemoteUpdateManager.shouldAutoCheck(this)) return
+
+        if (manual) {
+            status.text = "状态：正在检查更新 · GitHub 优先…"
+        }
+
+        Thread {
+            val result = RemoteUpdateManager.check(appVersionCode)
+            if (!manual) RemoteUpdateManager.markAutoChecked(this)
+
+            runOnUiThread {
+                when (result) {
+                    is UpdateCheckResult.Available -> {
+                        val mustUpdate = RemoteUpdateManager.isMandatory(result.info, appVersionCode)
+
+                        if (mustUpdate) {
+                            RemoteUpdateManager.cacheMandatoryUpdate(this, result.info)
+                            showMandatoryUpdateDialog(result.info)
+                            status.text = "状态：检测到必须更新版本 v${result.info.versionName}"
+                            return@runOnUiThread
+                        }
+
+                        val suppressed = !manual &&
+                            RemoteUpdateManager.shouldSuppressIgnoredUpdate(
+                                this,
+                                result.info.versionCode,
+                                appVersionCode
+                            )
+                        if (suppressed) {
+                            status.text = "状态：已按设置暂时忽略更新提醒"
+                        } else {
+                            showRemoteUpdateDialog(result.info)
+                            status.text = "状态：发现新版本 v${result.info.versionName}"
+                        }
+                    }
+                    is UpdateCheckResult.Latest -> {
+                        RemoteUpdateManager.clearIgnoredVersionIfInstalled(this, appVersionCode)
+                        RemoteU
