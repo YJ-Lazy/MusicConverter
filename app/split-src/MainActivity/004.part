@@ -1,0 +1,208 @@
+    .setMessage("请选择要扫描的目录。选择“内部存储”根目录即可扫描系统允许访问的整个磁盘。Android 11+ 会限制 Android/data、Android/obb 等受保护目录。")
+            .setNegativeButton("取消", null)
+            .setPositiveButton("选择目录") { _, _ ->
+                val intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).apply {
+                    addFlags(
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                            Intent.FLAG_GRANT_WRITE_URI_PERMISSION or
+                            Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION or
+                            Intent.FLAG_GRANT_PREFIX_URI_PERMISSION
+                    )
+                }
+                startActivityForResult(intent, pickTreeCode)
+            }
+            .show()
+    }
+
+    @Deprecated("Deprecated in Android API but kept to avoid adding a UI framework dependency")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (resultCode != RESULT_OK) return
+        val uri = data?.data ?: return
+
+        when (requestCode) {
+            pickFileCode -> handleSingleFile(uri, data.flags)
+            pickTreeCode -> handleScanTree(uri, data.flags)
+        }
+    }
+
+    private fun handleSingleFile(uri: Uri, dataFlags: Int) {
+        try {
+            val flags = dataFlags and (Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+            contentResolver.takePersistableUriPermission(uri, flags)
+        } catch (_: Throwable) {}
+        status.text = "状态：正在读取文件…"
+        Thread {
+            try {
+                val prepared = AudioFileManager.prepareInput(this, uri)
+                selected = prepared
+                runOnUiThread {
+                    selectedText.text = "${prepared.displayName}\n${AudioFormatDetector.label(prepared.displayName)}  ·  ${formatSize(prepared.size)}"
+                    status.text = "状态：文件已准备"
+                }
+            } catch (t: Throwable) {
+                runOnUiThread { status.text = "读取失败：${t.message}" }
+            }
+        }.start()
+    }
+
+    private fun handleScanTree(uri: Uri, dataFlags: Int) {
+        try {
+            val flags = dataFlags and (Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+            contentResolver.takePersistableUriPermission(uri, flags)
+        } catch (_: Throwable) {}
+
+        scannedBatch = emptyList()
+        batchConvertButton.isEnabled = false
+        batchConvertButton.alpha = 0.45f
+        batchText.text = "正在扫描目录…\n请稍候，不需要逐个选择文件"
+        status.text = "状态：开始扫描磁盘…"
+
+        Thread {
+            try {
+                var skippedIgnored = 0
+                val files = StorageAudioScanner.scan(this, uri) { progress ->
+                    skippedIgnored = progress.skippedIgnored
+                    if (progress.visitedFiles % 80 == 0 || progress.foundAudio > 0 || progress.skippedIgnored > 0) {
+                        runOnUiThread {
+                            status.text = "状态：扫描中 · 已检查 ${progress.visitedFiles} 个文件 · 可处理 ${progress.foundAudio} 首 · 已忽略 ${progress.skippedIgnored} 首"
+                        }
+                    }
+                }
+                scannedBatch = files
+                val encrypted = files.count { AudioFormatDetector.isEncrypted(it.displayName) }
+                val normal = files.size - encrypted
+                val totalBytes = files.filter { it.size > 0 }.sumOf { it.size }
+                runOnUiThread {
+                    if (files.isEmpty()) {
+                        batchText.text = if (skippedIgnored > 0) {
+                            "扫描完成，没有需要批量转换的文件\n按当前规则已忽略 $skippedIgnored 首"
+                        } else {
+                            "扫描完成，但没有发现支持的音乐文件\n可尝试选择更上层目录或内部存储根目录"
+                        }
+                        status.text = "状态：扫描完成 · 未发现可处理文件 · 已忽略 $skippedIgnored 首"
+                        batchConvertButton.isEnabled = false
+                        batchConvertButton.alpha = 0.45f
+                    } else {
+                        batchText.text = "已发现 ${files.size} 个可处理文件\n加密 $encrypted · 普通 $normal · ${formatSize(totalBytes)}\n按规则已忽略 $skippedIgnored 首"
+                        status.text = "状态：扫描完成 · ${files.size} 个文件等待批量转换 · 已忽略 $skippedIgnored 首"
+                        batchConvertButton.isEnabled = true
+                        batchConvertButton.alpha = 1f
+                    }
+                }
+            } catch (t: Throwable) {
+                runOnUiThread {
+                    batchText.text = "扫描失败\n${t.message ?: t.javaClass.simpleName}"
+                    status.text = "状态：扫描失败"
+                    batchConvertButton.isEnabled = false
+                    batchConvertButton.alpha = 0.45f
+                }
+            }
+        }.start()
+    }
+
+    private fun showConvertDialog() {
+        val item = selected ?: run { toast("请先选择音乐文件"); return }
+        val formats = AudioOutputFormat.values()
+        AlertDialog.Builder(this)
+            .setTitle("选择输出格式")
+            .setItems(formats.map { it.label }.toTypedArray()) { _, which -> runConversion(item, formats[which]) }
+            .show()
+    }
+
+    private fun runConversion(item: PreparedAudio, target: AudioOutputFormat) {
+        status.text = "状态：正在处理 ${item.displayName} → ${target.label}…"
+        Thread {
+            val result = ConversionEngine(this).convert(item, target)
+            runOnUiThread {
+                if (!result.success) {
+                    status.text = "处理失败：${result.error}"
+                    return@runOnUiThread
+                }
+                status.text = "完成：Music/MusicConverter/${result.outputName}"
+                if (deleteAsk.isChecked) showOriginalFileActions(item, result)
+            }
+        }.start()
+    }
+
+    private fun showBatchConvertDialog() {
+        if (batchRunning) {
+            toast("批量任务正在运行")
+            return
+        }
+
+        val files = scannedBatch
+        if (files.isEmpty()) {
+            toast("请先扫描磁盘")
+            return
+        }
+
+        val formats = AudioOutputFormat.values()
+        val encrypted = files.count { AudioFormatDetector.isEncrypted(it.displayName) }
+
+        val content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(UiKit.dp(this@MainActivity, 22), UiKit.dp(this@MainActivity, 4), UiKit.dp(this@MainActivity, 22), 0)
+        }
+        content.addView(UiKit.text(this, "请选择统一输出格式", 13f, UiKit.TEXT_2, true))
+
+        val formatGroup = RadioGroup(this).apply {
+            orientation = RadioGroup.VERTICAL
+            setPadding(0, UiKit.dp(this@MainActivity, 8), 0, 0)
+        }
+        formats.forEach { format ->
+            val rb = RadioButton(this).apply {
+                id = android.view.View.generateViewId()
+                tag = format
+                text = if (format == AudioOutputFormat.MP3) "${format.label}（推荐）" else format.label
+                textSize = 14f
+                setTextColor(UiKit.TEXT)
+                buttonTintList = android.content.res.ColorStateList(
+                    arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()),
+                    intArrayOf(UiKit.ACCENT, UiKit.TEXT_3)
+                )
+                isChecked = format == AudioOutputFormat.MP3
+            }
+            formatGroup.addView(rb)
+        }
+        content.addView(formatGroup)
+
+        val recommendedWorkers = BatchConversionService.recommendedParallelism()
+        content.addView(UiKit.text(this, "并行转换任务数", 13f, UiKit.TEXT_2, true).apply {
+            setPadding(0, UiKit.dp(this@MainActivity, 14), 0, 0)
+        })
+        val workerGroup = RadioGroup(this).apply {
+            orientation = RadioGroup.VERTICAL
+            setPadding(0, UiKit.dp(this@MainActivity, 6), 0, 0)
+        }
+        (1..4).forEach { workers ->
+            val rb = RadioButton(this).apply {
+                id = android.view.View.generateViewId()
+                tag = workers
+                text = when (workers) {
+                    1 -> "1 路（兼容 / 省电）"
+                    recommendedWorkers -> "$workers 路（推荐）"
+                    4 -> "4 路（高性能 / 高发热）"
+                    else -> "$workers 路并行"
+                }
+                textSize = 13.5f
+                setTextColor(UiKit.TEXT)
+                buttonTintList = android.content.res.ColorStateList(
+                    arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()),
+                    intArrayOf(UiKit.ACCENT, UiKit.TEXT_3)
+                )
+                isChecked = workers == recommendedWorkers
+            }
+            workerGroup.addView(rb)
+        }
+        content.addView(workerGroup)
+        content.addView(UiKit.text(
+            this,
+            "2～3 路通常更适合手机。FFmpeg 单个任务本身也会使用多核，4 路可能更热，且在慢速存储上不一定更快。",
+            11.5f,
+            UiKit.TEXT_3
+        ).apply { setPadding(0, UiKit.dp(this@MainActivity, 5), 0, 0) })
+
+        val replaceSource = CheckBox(this).apply {
+            text = "用转换结果置换源文件"
+            textSize = 14f
