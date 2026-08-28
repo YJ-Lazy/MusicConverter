@@ -1,0 +1,14 @@
+{
+  "versionCode": 13,
+  "versionName": "1.8.0-github-quark-update",
+  "title": "MusicConverter v1.8.0",
+  "changelog": [
+    "新增 GitHub 远程版本检查",
+    "新增夸克网盘 APK 更新入口",
+    "每天最多自动检查一次，并支持手动检查更新",
+    "更新清单和 APK 下载来源分离，便于后续维护"
+  ],
+  "quarkUrl": "https://pan.quark.cn/s/bc7cbd178f5a",
+  "force": false,
+  "minSupportedVersionCode": 12
+}
