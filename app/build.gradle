@@ -1,0 +1,110 @@
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+    id 'org.jetbrains.kotlin.kapt'
+    id 'com.chaquo.python'
+}
+
+
+android {
+
+    namespace "com.musicconverter.miui"
+
+    compileSdk 35
+
+
+    defaultConfig {
+
+        applicationId "com.musicconverter.miui"
+
+        minSdk 29
+        targetSdk 35
+
+        versionCode 12
+        versionName "1.7.0-user-ignore-formats"
+
+
+        ndk {
+            abiFilters "arm64-v8a", "armeabi-v7a"
+        }
+    }
+
+
+    buildTypes {
+
+        debug {
+            minifyEnabled false
+        }
+
+
+        release {
+            minifyEnabled false
+
+            proguardFiles getDefaultProguardFile(
+                    'proguard-android-optimize.txt'
+            ), 'proguard-rules.pro'
+        }
+    }
+
+
+    compileOptions {
+
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+
+
+    packagingOptions {
+
+        jniLibs {
+            useLegacyPackaging = true
+        }
+    }
+}
+
+
+chaquopy {
+    defaultConfig {
+        version "3.11"
+
+        buildPython("py", "-3.11")
+
+        pip {
+            install "pycryptodome==3.21.0"
+            install "mutagen==1.47.0"
+        }
+    }
+}
+
+
+dependencies {
+
+    implementation 'io.github.jamaismagic.ffmpeg:ffmpeg-kit-lts-full-16kb:6.1.4'
+
+
+    implementation "androidx.room:room-runtime:2.6.1"
+
+    kapt "androidx.room:room-compiler:2.6.1"
+}
+// music-geshizhuanhuan keeps the Kugou key as a binary XZ asset.
+// To keep this GitHub repository source-only, fetch the exact upstream MIT asset before build.
+def kugouKeyFile = file("src/main/python/assets/kugou_key.xz")
+def fetchKugouKey = tasks.register("fetchKugouKey") {
+    outputs.file(kugouKeyFile)
+    doLast {
+        if (!kugouKeyFile.exists()) {
+            kugouKeyFile.parentFile.mkdirs()
+            new URL("https://raw.githubusercontent.com/HRuiCcc/music-geshizhuanhuan/73e4b5fabb0fd28384f674bc3235eafbed6e487f/assets/kugou_key.xz")
+                    .withInputStream { input ->
+                        kugouKeyFile.withOutputStream { output -> output << input }
+                    }
+        }
+    }
+}
+
+tasks.named("preBuild").configure { dependsOn(fetchKugouKey) }
