@@ -1,3 +1,16 @@
+## 1.8.5.2.1
+
+- 修复 `MainActivity.kt` 中 `ScrollView.LayoutParams` 无法解析导致的 Kotlin 编译失败。
+- 改为 `FrameLayout.LayoutParams`。
+- 忽略格式复选框功能保持不变。
+
+## 1.8.5.2
+
+- 修复“忽略格式”弹窗只有说明文字、没有可选格式列表的问题。
+- 改为自定义 `ScrollView + CheckBox`，兼容 MIUI / HyperOS。
+- 每个格式均可独立勾选或取消。
+- “全部不忽略”仅清空当前勾选，点击“保存”后才写入设置。
+
 ## 1.8.5.1
 
 - 修复 `MainActivity.kt` 中 18 处 `BuildConfig` 无法解析导致的 Kotlin 编译失败。
