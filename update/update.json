@@ -1,14 +1,14 @@
 {
-  "versionCode": 19,
-  "versionName": "1.8.5.1-buildconfig-fix",
-  "title": "MusicConverter v1.8.5.1",
+  "versionCode": 21,
+  "versionName": "1.8.5.2.1-layoutparams-fix",
+  "title": "MusicConverter v1.8.5.2.1",
   "changelog": [
-    "修复 compileDebugKotlin 中 BuildConfig 无法解析导致的编译失败",
-    "当前版本号与版本名改为通过 Android PackageManager 获取",
-    "版本检查严格优先访问 GitHub，GitHub 不可用时才调用腾讯文档备用源",
-    "保留夸克与蓝奏云双下载入口，选择蓝奏云时自动复制提取密码",
-    "普通更新可忽略，累计跨 2 个版本后再次提醒",
-    "保留强制更新启动门禁逻辑"
+    "修复忽略格式弹窗不显示可选格式的问题",
+    "忽略格式改为自定义复选框列表，兼容 MIUI / HyperOS",
+    "修复 ScrollView.LayoutParams 导致的 Kotlin 编译错误",
+    "版本读取继续使用 Android PackageManager，不依赖 BuildConfig",
+    "版本检查优先 GitHub，GitHub 不可用时调用腾讯文档备用源",
+    "保留夸克 / 蓝奏云双下载入口、忽略 2 个版本和强制更新门禁"
   ],
   "quarkUrl": "https://pan.quark.cn/s/bc7cbd178f5a",
   "lanzouUrl": "https://ssssvip.lanzoue.com/b0xxjc13c",
