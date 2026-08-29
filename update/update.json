@@ -1,14 +1,15 @@
 {
-  "versionCode": 21,
-  "versionName": "1.8.5.2.1-layoutparams-fix",
-  "title": "MusicConverter v1.8.5.2.1",
+  "versionCode": 26,
+  "versionName": "1.9.0-day-night-theme",
+  "title": "MusicConverter v1.9.0",
   "changelog": [
-    "修复忽略格式弹窗不显示可选格式的问题",
-    "忽略格式改为自定义复选框列表，兼容 MIUI / HyperOS",
-    "修复 ScrollView.LayoutParams 导致的 Kotlin 编译错误",
-    "版本读取继续使用 Android PackageManager，不依赖 BuildConfig",
-    "版本检查优先 GitHub，GitHub 不可用时调用腾讯文档备用源",
-    "保留夸克 / 蓝奏云双下载入口、忽略 2 个版本和强制更新门禁"
+    "新增日间 / 夜间主题切换能力",
+    "主题选择自动保存，重启应用后保持",
+    "首页、批量页、关于页和音频编辑页统一跟随主题",
+    "首页音乐工作台放大，当前音乐与选择音乐文件移动到首屏中央",
+    "音频编辑界面新增波形图、剪辑选区与试听播放位置显示",
+    "新增用户可选的所有文件访问权限入口，未授权仍可使用 SAF",
+    "保留 GitHub 优先、腾讯文档备用、夸克 / 蓝奏云下载、忽略更新及强制更新逻辑"
   ],
   "quarkUrl": "https://pan.quark.cn/s/bc7cbd178f5a",
   "lanzouUrl": "https://ssssvip.lanzoue.com/b0xxjc13c",
