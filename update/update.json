@@ -1,15 +1,9 @@
 {
-  "versionCode": 26,
-  "versionName": "1.9.0-day-night-theme",
-  "title": "MusicConverter v1.9.0",
+  "versionCode": 27,
+  "versionName": "1.9.1-day-blue-accent",
+  "title": "MusicConverter v1.9.1",
   "changelog": [
-    "新增日间 / 夜间主题切换能力",
-    "主题选择自动保存，重启应用后保持",
-    "首页、批量页、关于页和音频编辑页统一跟随主题",
-    "首页音乐工作台放大，当前音乐与选择音乐文件移动到首屏中央",
-    "音频编辑界面新增波形图、剪辑选区与试听播放位置显示",
-    "新增用户可选的所有文件访问权限入口，未授权仍可使用 SAF",
-    "保留 GitHub 优先、腾讯文档备用、夸克 / 蓝奏云下载、忽略更新及强制更新逻辑"
+    "优化了日间模式页面"
   ],
   "quarkUrl": "https://pan.quark.cn/s/bc7cbd178f5a",
   "lanzouUrl": "https://ssssvip.lanzoue.com/b0xxjc13c",
