@@ -13,8 +13,8 @@ android {
         applicationId "com.musicconverter.miui"
         minSdk 29
         targetSdk 35
-        versionCode 21
-        versionName "1.8.5.2.1-layoutparams-fix"
+        versionCode 31
+        versionName "1.10.0-ace-style-ui"
 
         ndk {
             abiFilters "arm64-v8a", "armeabi-v7a"
@@ -22,14 +22,10 @@ android {
     }
 
     buildTypes {
-        debug {
-            minifyEnabled false
-        }
+        debug { minifyEnabled false }
         release {
             minifyEnabled false
-            proguardFiles getDefaultProguardFile(
-                    'proguard-android-optimize.txt'
-            ), 'proguard-rules.pro'
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
 
@@ -37,47 +33,57 @@ android {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
     }
-
-    kotlinOptions {
-        jvmTarget = "17"
-    }
-
-    packagingOptions {
-        jniLibs {
-            useLegacyPackaging = true
-        }
-    }
+    kotlinOptions { jvmTarget = "17" }
+    packagingOptions { jniLibs { useLegacyPackaging = true } }
 }
 
 def generatedCurrentKotlinDir = file("$buildDir/generated/currentKotlin")
 
 android {
     sourceSets {
-        main.java.srcDir generatedCurrentKotlinDir
+        // GitHub keeps the latest large/changed Kotlin sources as gzip+Base64 parts.
+        // Build from the generated tree only, so stale direct copies cannot create duplicate classes.
+        main.java.setSrcDirs([generatedCurrentKotlinDir])
     }
 }
 
 tasks.register("restoreCurrentKotlinSources") {
-    def sources = [
-        [
-            (0..4).collect { file("compressed-src/MainActivity.kt.gz.b64.part${it}") },
-            new File(generatedCurrentKotlinDir, "com/musicconverter/miui/MainActivity.kt")
-        ],
-        [
-            (0..1).collect { file("compressed-src/RemoteUpdateManager.kt.gz.b64.part${it}") },
-            new File(generatedCurrentKotlinDir, "com/musicconverter/miui/update/RemoteUpdateManager.kt")
-        ]
+    def sourceSpecs = [
+        ["com/musicconverter/miui/MainActivity.kt", (0..5).collect { file("compressed-src/MainActivity.kt.gz.b64.part${it}") }],
+        ["com/musicconverter/miui/update/RemoteUpdateManager.kt", (0..2).collect { file("compressed-src/RemoteUpdateManager.kt.gz.b64.part${it}") }],
+        ["com/musicconverter/miui/core/AudioFileManager.kt", [file("compressed-src/AudioFileManager.kt.gz.b64.part0")]],
+        ["com/musicconverter/miui/core/DeleteManager.kt", [file("compressed-src/DeleteManager.kt.gz.b64.part0")]],
+        ["com/musicconverter/miui/core/FfmpegEngine.kt", [file("compressed-src/FfmpegEngine.kt.gz.b64.part0")]],
+        ["com/musicconverter/miui/core/IgnoredFormatPreferences.kt", [file("compressed-src/IgnoredFormatPreferences.kt.gz.b64.part0")]],
+        ["com/musicconverter/miui/editor/AudioEditorActivity.kt", (0..1).collect { file("compressed-src/AudioEditorActivity.kt.gz.b64.part${it}") }],
+        ["com/musicconverter/miui/editor/WaveformExtractor.kt", [file("compressed-src/WaveformExtractor.kt.gz.b64.part0")]],
+        ["com/musicconverter/miui/editor/WaveformView.kt", [file("compressed-src/WaveformView.kt.gz.b64.part0")]],
+        ["com/musicconverter/miui/scanner/FullStorageAudioScanner.kt", [file("compressed-src/FullStorageAudioScanner.kt.gz.b64.part0")]],
+        ["com/musicconverter/miui/scanner/StorageAudioScanner.kt", [file("compressed-src/StorageAudioScanner.kt.gz.b64.part0")]],
+        ["com/musicconverter/miui/service/BatchConversionService.kt", (0..2).collect { file("compressed-src/BatchConversionService.kt.gz.b64.part${it}") }],
+        ["com/musicconverter/miui/ui/ThemePreferences.kt", [file("compressed-src/ThemePreferences.kt.gz.b64.part0")]],
+        ["com/musicconverter/miui/ui/UiKit.kt", [file("compressed-src/UiKit.kt.gz.b64.part0")]]
     ]
 
-    inputs.files(sources.collectMany { it[0] })
+    inputs.files(sourceSpecs.collectMany { it[1] })
+    inputs.dir(file("src/main/java"))
     outputs.dir generatedCurrentKotlinDir
 
     doLast {
-        sources.each { entry ->
-            def parts = entry[0]
-            def target = entry[1]
+        delete generatedCurrentKotlinDir
+        generatedCurrentKotlinDir.mkdirs()
+
+        copy {
+            from file("src/main/java")
+            into generatedCurrentKotlinDir
+        }
+
+        sourceSpecs.each { spec ->
+            def relativePath = spec[0]
+            def parts = spec[1]
             def encoded = parts.collect { it.getText("UTF-8").trim() }.join("")
             def compressed = java.util.Base64.decoder.decode(encoded)
+            def target = new File(generatedCurrentKotlinDir, relativePath)
             target.parentFile.mkdirs()
             new java.util.zip.GZIPInputStream(new java.io.ByteArrayInputStream(compressed)).withCloseable { input ->
                 target.withOutputStream { output -> output << input }
@@ -94,7 +100,6 @@ chaquopy {
     defaultConfig {
         version "3.11"
         buildPython("py", "-3.11")
-
         pip {
             install "pycryptodome==3.21.0"
             install "mutagen==1.47.0"
@@ -103,25 +108,7 @@ chaquopy {
 }
 
 dependencies {
-    implementation 'io.github.jamaismagic.ffmpeg:ffmpeg-kit-lts-full-16kb:6.1.4'
+    implementation project(':ffmpeg-kit')
     implementation "androidx.room:room-runtime:2.6.1"
     kapt "androidx.room:room-compiler:2.6.1"
 }
-
-// music-geshizhuanhuan keeps the Kugou key as a binary XZ asset.
-// Keep the GitHub repository source-only and fetch the fixed upstream asset before build.
-def kugouKeyFile = file("src/main/python/assets/kugou_key.xz")
-def fetchKugouKey = tasks.register("fetchKugouKey") {
-    outputs.file(kugouKeyFile)
-    doLast {
-        if (!kugouKeyFile.exists()) {
-            kugouKeyFile.parentFile.mkdirs()
-            new URL("https://raw.githubusercontent.com/HRuiCcc/music-geshizhuanhuan/73e4b5fabb0fd28384f674bc3235eafbed6e487f/assets/kugou_key.xz")
-                    .withInputStream { input ->
-                        kugouKeyFile.withOutputStream { output -> output << input }
-                    }
-        }
-    }
-}
-
-tasks.named("preBuild").configure { dependsOn(fetchKugouKey) }

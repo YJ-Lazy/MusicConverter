@@ -1,26 +1,34 @@
-# MusicConverter
+# MusicConverter MIUI Pro
 
-Android 本地音乐解密、格式转换与轻量音频编辑工具。项目使用 Kotlin + Chaquopy + FFmpegKit，界面采用偏 MIUI / HyperOS 的三页工作区布局。
+Android 本地音乐解密、格式转换、批量处理与轻量音频编辑工具。界面采用 MIUI / HyperOS 风格，支持日间 / 夜间主题。
 
-> 当前源码版本：`1.8.5.2.1-layoutparams-fix`（versionCode 21）
+> 当前源码版本：`1.10.0-ace-style-ui`（versionCode 31）
 
 ## 功能
 
 - 单文件转换：MP3 / FLAC / M4A / WAV / OGG。
 - 加密音乐解密：NCM、QMC/MFLAC/MGG、KGM/KGMA/VPR、KWM 等。
-- 音频编辑：选区试听、暂停/继续、单段剪切、失败时自动重编码。
+- 音频编辑：波形预览、选区、试听、暂停、剪辑与导出。
 - SAF 目录扫描与一键批量转换。
+- 可配置批量扫描过滤格式。
+- 用户可选申请“所有文件访问权限”；授权后可主动选择全盘扫描。
 - 1–4 路并行批量处理与“完成当前任务后暂停”。
-- 前台服务后台转换、通知进度、WakeLock。
+- 前台服务后台转换、通知进度与 WakeLock。
 - 源文件保留、删除或成功后置换。
-- 用户可自定义批量扫描要忽略的格式；当前使用自定义复选框列表，兼容 MIUI / HyperOS。
-- GitHub 优先检查版本，GitHub 不可用时使用腾讯文档备用源。
-- 支持夸克 / 蓝奏云双下载入口、普通更新忽略策略与强制更新门禁。
+- 日间 / 夜间主题切换并记忆选择。
+- GitHub 主更新源；GitHub 失败时使用腾讯文档备用源。
+- 夸克 / 蓝奏云双 APK 下载入口。
 - Room 记录处理历史。
 
-## GitHub 源码布局
+## v1.10.0 UI
 
-为了让较大的 Kotlin 文件通过仓库接口稳定同步，当前 GitHub 版本会在构建前从 `app/compressed-src/` 恢复当前 Kotlin 源文件到 `build/generated/currentKotlin`。这是源码文本的无损压缩/分片，不改变运行逻辑。
+本版重新优化整体界面层级：
+
+- 首页：大标题、中央 Hero 音乐卡片、两列功能中心。
+- 批量页：扫描、任务状态、工具分组展示。
+- 介绍页：应用 Hero、能力列表、软件更新和信息区域。
+- 日间主题使用蓝色强调，夜间主题保持深色紫色强调。
+- 底部导航、卡片圆角、留白和系统栏视觉统一。
 
 ## 构建环境
 
@@ -31,9 +39,6 @@ Android 本地音乐解密、格式转换与轻量音频编辑工具。项目使
 - compileSdk / targetSdk 35
 - minSdk 29
 - Python 3.11（Chaquopy）
-
-Chaquopy Python 依赖：
-
 - `pycryptodome==3.21.0`
 - `mutagen==1.47.0`
 
@@ -43,17 +48,9 @@ Windows：
 gradlew.bat :app:assembleDebug --no-daemon
 ```
 
-macOS / Linux：
+## GitHub 源码同步说明
 
-```bash
-./gradlew :app:assembleDebug --no-daemon
-```
-
-Debug APK 默认位于：
-
-```text
-app/build/outputs/apk/debug/app-debug.apk
-```
+仓库接口对超大 Kotlin 文件的单次同步有限制，因此部分当前 Kotlin 源码以 `app/compressed-src/` 中的 gzip + Base64 分片保存。`app/build.gradle` 在 `preBuild` 前无损恢复这些文件到生成源码目录；其余未变化的小文件仍保留普通源码形式。
 
 ## 输出目录
 
@@ -61,10 +58,8 @@ app/build/outputs/apk/debug/app-debug.apk
 Music/MusicConverter/
 ```
 
-## 说明
+## 权限说明
 
-- Android 11+ 对 `Android/data`、`Android/obb` 等目录存在系统级限制，MusicConverter 不绕过系统沙箱。
-- QQ 音乐部分新版格式在缺少内嵌 EKey 时仍可能需要额外密钥信息。
-- 请仅处理你有权访问和转换的本地音频文件。
+“所有文件访问权限”是可选权限。不开启时仍可使用 Android SAF 选择目录；开启后才会额外显示“全盘扫描”，且必须由用户主动点击并确认。Android/data、Android/obb 等位置仍受 Android 系统限制。
 
-更多版本记录见 [CHANGELOG.md](CHANGELOG.md)，第三方许可见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+请仅处理你有权访问和转换的本地音频文件。更多版本记录见 [CHANGELOG.md](CHANGELOG.md)，第三方许可见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。

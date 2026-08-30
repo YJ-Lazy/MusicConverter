@@ -1,7 +1,7 @@
-# Sync status
+# Source Sync Status
 
-Current source baseline: `1.8.5.1-buildconfig-fix` (`versionCode 19`).
-
-The GitHub build restores the current `MainActivity.kt` and `RemoteUpdateManager.kt` from `app/compressed-src/` before compilation. This avoids repository API size limitations while preserving the exact Kotlin source text.
-
-Remote update manifest remains intentionally separate from source-version synchronization so APK download links are not advanced before a matching APK is uploaded.
+- Current source baseline: `v1.10.0-ace-style-ui`
+- versionCode: `31`
+- User-confirmed local build: successful
+- Large/current Kotlin sources: restored from `app/compressed-src/` during `preBuild`
+- Remote update manifest: `update/update.json`

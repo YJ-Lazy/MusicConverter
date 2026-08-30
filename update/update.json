@@ -1,9 +1,9 @@
 {
-  "versionCode": 27,
-  "versionName": "1.9.1-day-blue-accent",
-  "title": "MusicConverter v1.9.1",
+  "versionCode": 31,
+  "versionName": "1.10.0-ace-style-ui",
+  "title": "MusicConverter v1.10.0",
   "changelog": [
-    "优化了日间模式页面"
+    "优化UI，添加部分工具选项"
   ],
   "quarkUrl": "https://pan.quark.cn/s/bc7cbd178f5a",
   "lanzouUrl": "https://ssssvip.lanzoue.com/b0xxjc13c",
