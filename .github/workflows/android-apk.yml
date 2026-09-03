@@ -1,67 +1,203 @@
-name: Build Android APK
+name: Android APK Build & Release
 
 on:
-  workflow_dispatch:
   push:
+    branches:
+      - main
     tags:
       - "v*"
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      publish_release:
+        description: "Create or update a GitHub Release from this commit"
+        required: false
+        default: false
+        type: boolean
+      release_tag:
+        description: "Optional tag, e.g. v2.0. Leave empty to use app versionName."
+        required: false
+        type: string
 
 permissions:
   contents: write
 
+concurrency:
+  group: android-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref_type != 'tag' }}
+
+env:
+  JAVA_VERSION: "17"
+  PYTHON_VERSION: "3.11"
+
 jobs:
   build-debug:
-    if: github.event_name == 'workflow_dispatch'
+    name: Build Debug APK
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "17"
+          java-version: ${{ env.JAVA_VERSION }}
           cache: gradle
-      - uses: gradle/actions/setup-gradle@v4
-      - name: Build installable debug APK
-        run: ./gradlew :app:assembleDebug --no-daemon
-      - name: Upload APK
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Validate Gradle Wrapper
+        uses: gradle/actions/wrapper-validation@v4
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build Debug APK
+        run: ./gradlew :app:assembleDebug --no-daemon --stacktrace
+
+      - name: Stage Debug APK
+        shell: bash
+        run: |
+          mkdir -p dist
+          cp app/build/outputs/apk/debug/app-debug.apk "dist/MusicConverter-2.0-debug.apk"
+
+      - name: Upload Debug APK
         uses: actions/upload-artifact@v4
         with:
           name: MusicConverter-debug-${{ github.sha }}
-          path: app/build/outputs/apk/debug/app-debug.apk
+          path: dist/MusicConverter-2.0-debug.apk
           if-no-files-found: error
           retention-days: 30
 
   release:
-    if: github.ref_type == 'tag'
+    name: Publish Stable Release
+    needs: build-debug
+    if: >-
+      startsWith(github.ref, 'refs/tags/v') ||
+      (github.event_name == 'workflow_dispatch' && inputs.publish_release) ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/main' && startsWith(github.event.head_commit.message, 'release:'))
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "17"
+          java-version: ${{ env.JAVA_VERSION }}
           cache: gradle
-      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Validate Gradle Wrapper
+        uses: gradle/actions/wrapper-validation@v4
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Resolve release version and tag
+        id: version
+        shell: bash
+        env:
+          MANUAL_TAG: ${{ inputs.release_tag }}
+        run: |
+          VERSION=$(sed -n 's/^[[:space:]]*versionName[[:space:]]*"\([^"]*\)".*/\1/p' app/build.gradle | head -n 1)
+          test -n "$VERSION" || { echo "Unable to read versionName"; exit 1; }
+
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            TAG="$GITHUB_REF_NAME"
+          elif [[ -n "${MANUAL_TAG:-}" ]]; then
+            TAG="$MANUAL_TAG"
+          else
+            TAG="v$VERSION"
+          fi
+
+          if [[ "${TAG#v}" != "$VERSION" ]]; then
+            echo "Tag $TAG does not match versionName $VERSION"
+            exit 1
+          fi
+
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Detect release signing secrets
+        id: signing
+        shell: bash
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          if [[ -n "$KEYSTORE_BASE64" && -n "$KEYSTORE_PASSWORD" && -n "$KEY_ALIAS" && -n "$KEY_PASSWORD" ]]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Release signing secrets are incomplete. The GitHub Release will be created without an APK asset."
+          fi
+
       - name: Restore signing keystore
+        if: steps.signing.outputs.available == 'true'
+        shell: bash
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
         run: |
-          test -n "$KEYSTORE_BASE64" || { echo "Missing KEYSTORE_BASE64 secret"; exit 1; }
           printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/release.jks"
-      - name: Build signed release APK
+
+      - name: Build signed Release APK
+        if: steps.signing.outputs.available == 'true'
         env:
           RELEASE_STORE_FILE: ${{ runner.temp }}/release.jks
           RELEASE_STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           RELEASE_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           RELEASE_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        run: ./gradlew :app:assembleRelease --no-daemon
-      - name: Prepare release asset
-        run: cp app/build/outputs/apk/release/app-release.apk "MusicConverter-${GITHUB_REF_NAME}.apk"
-      - name: Publish GitHub Release
-        uses: softprops/action-gh-release@v2
+        run: ./gradlew :app:assembleRelease --no-daemon --stacktrace
+
+      - name: Stage Release APK
+        if: steps.signing.outputs.available == 'true'
+        shell: bash
+        run: |
+          mkdir -p dist
+          cp app/build/outputs/apk/release/app-release.apk "dist/MusicConverter-${{ steps.version.outputs.tag }}.apk"
+          sha256sum "dist/MusicConverter-${{ steps.version.outputs.tag }}.apk" > "dist/MusicConverter-${{ steps.version.outputs.tag }}.apk.sha256"
+
+      - name: Create or update GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+          VERSION: ${{ steps.version.outputs.version }}
+          HAS_SIGNING: ${{ steps.signing.outputs.available }}
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists."
+          else
+            gh release create "$TAG" --target "$GITHUB_SHA" --title "MusicConverter $VERSION" --generate-notes
+          fi
+
+          if [[ "$HAS_SIGNING" == "true" ]]; then
+            gh release upload "$TAG" dist/* --clobber
+          fi
+
+      - name: Upload signed Release artifact
+        if: steps.signing.outputs.available == 'true'
+        uses: actions/upload-artifact@v4
         with:
-          files: MusicConverter-${{ github.ref_name }}.apk
-          generate_release_notes: true
-          fail_on_unmatched_files: true
+          name: MusicConverter-${{ steps.version.outputs.tag }}
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 90

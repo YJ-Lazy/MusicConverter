@@ -22,4 +22,3 @@ keystore.properties
 .externalNativeBuild/
 
 app/src/main/python/assets/kugou_key.xz
-gradle/wrapper/gradle-wrapper.jar
