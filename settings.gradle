@@ -18,3 +18,7 @@ dependencyResolutionManagement {
 rootProject.name = "MusicConverter_MIUI_Pro"
 
 include ':app'
+include ':ffmpeg-kit'
+
+project(':ffmpeg-kit').projectDir =
+        file('ffmpeg-kit/android/ffmpeg-kit-android-lib')

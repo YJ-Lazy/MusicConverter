@@ -10,10 +10,10 @@ MusicConverter 使用或集成了以下第三方组件。各组件继续遵循�
 
 ## FFmpegKit / FFmpeg
 
-- Android 依赖：`io.github.jamaismagic.ffmpeg:ffmpeg-kit-lts-full-16kb:6.1.4`。
+- Android 依赖：仓库内置的 `ffmpeg-kit` 本地模块。
 - 用途：音频转码、剪切、媒体信息读取。
 - FFmpegKit / FFmpeg 的许可取决于具体构建选项和启用的组件；再发布前请核对依赖发布页和许可证。
-- 本仓库不再直接提交预编译 FFmpeg `.so` 文件。
+- 本仓库保留原工程随附的预编译 FFmpeg `.so` 文件。
 
 ## Chaquopy
 

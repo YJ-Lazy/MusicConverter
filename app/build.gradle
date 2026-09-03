@@ -105,8 +105,35 @@ tasks.register("restoreCurrentKotlinSources") {
     }
 }
 
+def ffmpegBinaryPartsDir = rootProject.file("ffmpeg-kit/binary-parts")
+
+tasks.register("restoreFfmpegBinaries") {
+    inputs.dir ffmpegBinaryPartsDir
+    outputs.upToDateWhen { false }
+
+    doLast {
+        if (!ffmpegBinaryPartsDir.exists()) {
+            return
+        }
+
+        def partFiles = fileTree(ffmpegBinaryPartsDir).matching { include "**/*.part*" }.files
+        partFiles.groupBy { part ->
+            ffmpegBinaryPartsDir.toPath().relativize(part.toPath()).toString().replaceFirst(/\.part\d+$/, "")
+        }.each { relativePath, parts ->
+            def target = rootProject.file("ffmpeg-kit/${relativePath}")
+            target.parentFile.mkdirs()
+            target.withOutputStream { output ->
+                parts.sort { it.name }.each { part ->
+                    part.withInputStream { input -> output << input }
+                }
+            }
+        }
+    }
+}
+
 tasks.named("preBuild").configure {
     dependsOn tasks.named("restoreCurrentKotlinSources")
+    dependsOn tasks.named("restoreFfmpegBinaries")
 }
 
 chaquopy {
