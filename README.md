@@ -2,6 +2,31 @@
 
 Android 本地音乐解密、格式转换、批量处理与轻量音频编辑工具。界面采用 MIUI / HyperOS 风格，支持日间 / 夜间主题。
 
+## GitHub 自动构建与发布
+
+- 在 **Actions → Build Android APK → Run workflow** 中可手动生成 Debug APK。
+- 推送 `v` 开头的标签时，会自动构建签名版 Release APK、创建 GitHub Release 并上传 APK。
+- 正式发布前，需要在 **Settings → Secrets and variables → Actions** 中配置 `KEYSTORE_BASE64`、`KEYSTORE_PASSWORD`、`KEY_ALIAS` 和 `KEY_PASSWORD`。签名文件不要提交到仓库。
+
+生成 `KEYSTORE_BASE64`（Linux / macOS）：
+
+```bash
+base64 -w 0 release.jks
+```
+
+PowerShell：
+
+```powershell
+[Convert]::ToBase64String([IO.File]::ReadAllBytes("release.jks"))
+```
+
+配置完成后发布版本：
+
+```bash
+git tag v1.10.0
+git push origin v1.10.0
+```
+
 > 当前源码版本：`1.10.0-ace-style-ui`（versionCode 31）
 
 ## 功能
