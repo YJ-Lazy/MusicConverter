@@ -139,7 +139,11 @@ tasks.named("preBuild").configure {
 chaquopy {
     defaultConfig {
         version "3.11"
-        buildPython("py", "-3.11")
+        if (System.getProperty("os.name").toLowerCase().contains("windows")) {
+            buildPython("py", "-3.11")
+        } else {
+            buildPython("python3")
+        }
         pip {
             install "pycryptodome==3.21.0"
             install "mutagen==1.47.0"
