@@ -43,6 +43,11 @@ import com.musicconverter.miui.update.UpdateCheckResult
 class MainActivity : Activity() {
     private val pickFileCode = 1001
     private val pickTreeCode = 1002
+    private val saveConvertedAsCode = 1003
+
+    private var pendingConvertedFile: java.io.File? = null
+    private var pendingConvertedName: String = ""
+    private var pendingConvertedSource: PreparedAudio? = null
 
     /**
      * 直接读取当前已安装 APK 的真实版本信息，
@@ -1428,9 +1433,40 @@ class MainActivity : Activity() {
     @Deprecated("Deprecated in Android API but kept to avoid adding a UI framework dependency")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+
+        if (requestCode == saveConvertedAsCode) {
+            if (resultCode != RESULT_OK) {
+                status.text = "状态：已取消另存为"
+                return
+            }
+            val target = data?.data ?: return
+            val source = pendingConvertedFile
+            val name = pendingConvertedName
+            val item = pendingConvertedSource
+            if (source == null || !source.exists()) {
+                toast("转换结果已失效，请重新转换")
+                return
+            }
+            status.text = "状态：正在另存为…"
+            Thread {
+                try {
+                    AudioFileManager.saveToUri(this, source, target)
+                    item?.let { HistoryRepository(this).record(it.displayName, name, "保存", "用户选择位置") }
+                    source.delete()
+                    clearPendingConverted(source)
+                    runOnUiThread {
+                        status.text = "状态：另存为完成 · $name"
+                        toast("文件已保存到所选位置")
+                    }
+                } catch (t: Throwable) {
+                    runOnUiThread { status.text = "另存为失败：${t.message}" }
+                }
+            }.start()
+            return
+        }
+
         if (resultCode != RESULT_OK) return
         val uri = data?.data ?: return
-
         when (requestCode) {
             pickFileCode -> handleSingleFile(uri, data.flags)
             pickTreeCode -> handleScanTree(uri, data.flags)
@@ -1524,16 +1560,198 @@ class MainActivity : Activity() {
     private fun runConversion(item: PreparedAudio, target: AudioOutputFormat) {
         status.text = "状态：正在处理 ${item.displayName} → ${target.label}…"
         Thread {
-            val result = ConversionEngine(this).convert(item, target)
+            val result = ConversionEngine(this).convertToTemp(item, target)
             runOnUiThread {
-                if (!result.success) {
-                    status.text = "处理失败：${result.error}"
+                if (!result.success || result.tempFile == null) {
+                    status.text = "处理失败：${result.error.ifBlank { "找不到转换结果" }}"
                     return@runOnUiThread
                 }
-                status.text = "完成：Music/MusicConverter/${result.outputName}"
-                if (deleteAsk.isChecked) showOriginalFileActions(item, result)
+                pendingConvertedFile?.takeIf { it != result.tempFile }?.delete()
+                pendingConvertedFile = result.tempFile
+                pendingConvertedName = result.outputName
+                pendingConvertedSource = item
+                status.text = "状态：转换完成 · 请选择保存方式"
+                showConvertedSaveOptions(item, result.tempFile, result.outputName)
             }
         }.start()
+    }
+
+    private fun showConvertedSaveOptions(
+        item: PreparedAudio,
+        convertedFile: java.io.File,
+        outputName: String
+    ) {
+        val content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(
+                UiKit.dp(this@MainActivity, 22),
+                UiKit.dp(this@MainActivity, 8),
+                UiKit.dp(this@MainActivity, 22),
+                UiKit.dp(this@MainActivity, 8)
+            )
+        }
+
+        content.addView(
+            UiKit.text(
+                this,
+                "已生成：$outputName\n请选择保存方式。",
+                15f,
+                UiKit.TEXT
+            ).apply {
+                setLineSpacing(0f, 1.18f)
+                setPadding(0, 0, 0, UiKit.dp(this@MainActivity, 16))
+            }
+        )
+
+        val saveAsButton = UiKit.wideButton(
+            this,
+            "⇩",
+            "另存为…",
+            true
+        )
+        val replaceButton = UiKit.wideButton(
+            this,
+            "⇄",
+            "替换源文件"
+        )
+        val defaultButton = UiKit.wideButton(
+            this,
+            "✓",
+            "保存到默认位置"
+        )
+
+        content.addView(
+            saveAsButton,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                UiKit.dp(this, 54)
+            )
+        )
+
+        content.addView(
+            replaceButton,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                UiKit.dp(this, 54)
+            ).apply {
+                topMargin = UiKit.dp(this@MainActivity, 10)
+            }
+        )
+
+        content.addView(
+            defaultButton,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                UiKit.dp(this, 54)
+            ).apply {
+                topMargin = UiKit.dp(this@MainActivity, 10)
+            }
+        )
+
+        val dialog = appDialogBuilder()
+            .setTitle("处理完成")
+            .setView(content)
+            .setNegativeButton("取消") { _, _ ->
+                status.text = "状态：转换结果暂未保存"
+            }
+            .create()
+
+        dialog.setOnShowListener {
+            tintDialogButtons(dialog)
+
+            saveAsButton.setOnClickListener {
+                dialog.dismiss()
+                launchSaveAsPicker(outputName)
+            }
+
+            replaceButton.setOnClickListener {
+                dialog.dismiss()
+                replaceSourceWithConverted(item, convertedFile, outputName)
+            }
+
+            defaultButton.setOnClickListener {
+                dialog.dismiss()
+                saveConvertedToDefault(item, convertedFile, outputName)
+            }
+        }
+
+        dialog.show()
+    }
+
+    private fun launchSaveAsPicker(outputName: String) {
+        val file = pendingConvertedFile
+        if (file == null || !file.exists()) {
+            toast("转换结果已失效，请重新转换")
+            return
+        }
+        startActivityForResult(
+            Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+                addCategory(Intent.CATEGORY_OPENABLE)
+                type = AudioFileManager.mimeFor(outputName)
+                putExtra(Intent.EXTRA_TITLE, outputName)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+            },
+            saveConvertedAsCode
+        )
+    }
+
+    private fun saveConvertedToDefault(item: PreparedAudio, convertedFile: java.io.File, outputName: String) {
+        status.text = "状态：正在保存到默认位置…"
+        Thread {
+            try {
+                AudioFileManager.publishAudio(this, convertedFile, outputName)
+                HistoryRepository(this).record(item.displayName, outputName, "保存", "默认位置")
+                convertedFile.delete()
+                clearPendingConverted(convertedFile)
+                runOnUiThread {
+                    status.text = "完成：Music/MusicConverter/$outputName"
+                    toast("已保存到 Music/MusicConverter")
+                }
+            } catch (t: Throwable) {
+                runOnUiThread { status.text = "保存失败：${t.message}" }
+            }
+        }.start()
+    }
+
+    private fun replaceSourceWithConverted(item: PreparedAudio, convertedFile: java.io.File, outputName: String) {
+        status.text = "状态：正在替换源文件…"
+        Thread {
+            var published: Uri? = null
+            try {
+                published = AudioFileManager.publishAudio(this, convertedFile, outputName)
+                val replaced = AudioFileManager.replaceOriginal(
+                    this, item.originalUri, item.displayName, published, outputName, item.localFile
+                )
+                if (!replaced.success) {
+                    runCatching { contentResolver.delete(published, null, null) }
+                    runOnUiThread {
+                        status.text = "替换失败：${replaced.message}"
+                        toast("替换失败，源文件已保留")
+                    }
+                    return@Thread
+                }
+                convertedFile.delete()
+                clearPendingConverted(convertedFile)
+                HistoryRepository(this).record(item.displayName, outputName, "转换", "已替换源文件")
+                runOnUiThread {
+                    selected = null
+                    selectedText.text = "源文件已被转换结果替换\n请重新选择文件继续处理"
+                    status.text = "状态：已替换源文件 · $outputName"
+                    toast("已替换源文件")
+                }
+            } catch (t: Throwable) {
+                published?.let { uri -> runCatching { contentResolver.delete(uri, null, null) } }
+                runOnUiThread { status.text = "替换失败：${t.message}" }
+            }
+        }.start()
+    }
+
+    private fun clearPendingConverted(file: java.io.File) {
+        if (pendingConvertedFile?.absolutePath == file.absolutePath) {
+            pendingConvertedFile = null
+            pendingConvertedName = ""
+            pendingConvertedSource = null
+        }
     }
 
     private fun showBatchConvertDialog() {
@@ -1904,7 +2122,12 @@ class MainActivity : Activity() {
     }
 
     private fun openEditor() {
-        val item = selected ?: run { toast("请先选择音乐文件"); return }
+        val item = selected
+        if (item == null) {
+            status.text = "状态：进入剪辑器 · 可在页面内选择文件"
+            startActivity(Intent(this, AudioEditorActivity::class.java))
+            return
+        }
         status.text = "状态：正在准备编辑…"
         Thread {
             val (file, error) = ConversionEngine(this).prepareEditable(item)
@@ -1949,42 +2172,135 @@ class MainActivity : Activity() {
 
     private fun showOriginalFileActions(item: PreparedAudio, result: ConversionResult) {
         val outputUri = result.outputUri
-        val options = arrayOf("保留源文件", "删除源文件", "用转换结果置换源文件")
-        appDialogBuilder()
+
+        val content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(
+                UiKit.dp(this@MainActivity, 22),
+                UiKit.dp(this@MainActivity, 8),
+                UiKit.dp(this@MainActivity, 22),
+                UiKit.dp(this@MainActivity, 8)
+            )
+        }
+
+        content.addView(
+            UiKit.text(
+                this,
+                "已生成：${result.outputName}\n请选择源文件处理方式。",
+                15f,
+                UiKit.TEXT
+            ).apply {
+                setLineSpacing(0f, 1.18f)
+                setPadding(
+                    0,
+                    0,
+                    0,
+                    UiKit.dp(this@MainActivity, 16)
+                )
+            }
+        )
+
+        val keepButton = UiKit.wideButton(
+            this,
+            "✓",
+            "保留源文件",
+            true
+        )
+        val deleteButton = UiKit.wideButton(
+            this,
+            "⌫",
+            "删除源文件"
+        )
+        val replaceButton = UiKit.wideButton(
+            this,
+            "⇄",
+            "用转换结果置换源文件"
+        )
+
+        content.addView(
+            keepButton,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                UiKit.dp(this, 54)
+            )
+        )
+
+        UiKit.margins(deleteButton, 0, 10, 0, 0)
+        content.addView(
+            deleteButton,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                UiKit.dp(this, 54)
+            )
+        )
+
+        UiKit.margins(replaceButton, 0, 10, 0, 0)
+        content.addView(
+            replaceButton,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                UiKit.dp(this, 54)
+            )
+        )
+
+        val dialog = appDialogBuilder()
             .setTitle("处理完成")
-            .setMessage("已生成：${result.outputName}\n请选择源文件处理方式。")
-            .setItems(options) { _, which ->
-                when (which) {
-                    1 -> {
-                        val ok = DeleteManager.delete(this, item.originalUri)
-                        toast(if (ok) "源文件已删除" else "无法删除源文件，请检查文件提供方权限")
+            .setView(content)
+            .setNegativeButton("取消", null)
+            .create()
+
+        dialog.setOnShowListener {
+            keepButton.setOnClickListener {
+                status.text = "状态：转换完成 · 已保留源文件"
+                dialog.dismiss()
+            }
+
+            deleteButton.setOnClickListener {
+                val ok = DeleteManager.delete(this, item.originalUri)
+                toast(
+                    if (ok) {
+                        "源文件已删除"
+                    } else {
+                        "无法删除源文件，请检查文件提供方权限"
                     }
-                    2 -> {
-                        if (outputUri == null) {
-                            toast("找不到转换结果，未修改源文件")
-                            return@setItems
-                        }
-                        val replace = AudioFileManager.replaceOriginal(
-                            this,
-                            item.originalUri,
-                            item.displayName,
-                            outputUri,
-                            result.outputName,
-                            item.localFile
-                        )
-                        if (replace.success) {
-                            selected = null
-                            selectedText.text = "源文件已被转换结果置换\n请重新选择文件继续处理"
-                            status.text = "状态：已置换源文件 · ${result.outputName}"
-                            toast("已用转换结果置换源文件")
-                        } else {
-                            toast("置换失败：${replace.message}；源文件已保留")
-                        }
-                    }
+                )
+
+                if (ok) {
+                    status.text = "状态：转换完成 · 源文件已删除"
+                    dialog.dismiss()
                 }
             }
-            .setNegativeButton("关闭", null)
-            .show()
+
+            replaceButton.setOnClickListener {
+                if (outputUri == null) {
+                    toast("找不到转换结果，未修改源文件")
+                    return@setOnClickListener
+                }
+
+                val replace = AudioFileManager.replaceOriginal(
+                    this,
+                    item.originalUri,
+                    item.displayName,
+                    outputUri,
+                    result.outputName,
+                    item.localFile
+                )
+
+                if (replace.success) {
+                    selected = null
+                    selectedText.text =
+                        "源文件已被转换结果置换\n请重新选择文件继续处理"
+                    status.text =
+                        "状态：已置换源文件 · ${result.outputName}"
+                    toast("已用转换结果置换源文件")
+                    dialog.dismiss()
+                } else {
+                    toast("置换失败：${replace.message}；源文件已保留")
+                }
+            }
+        }
+
+        dialog.show()
     }
 
     private fun toast(s: String) = Toast.makeText(this, s, Toast.LENGTH_LONG).show()
