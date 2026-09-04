@@ -51,6 +51,102 @@ object FfmpegEngine {
         return execute(args)
     }
 
+
+    fun concat(inputs: List<File>, output: File): FfmpegResult {
+        if (inputs.size < 2) return FfmpegResult(false, "至少需要两个音频文件")
+        output.parentFile?.mkdirs()
+        output.delete()
+
+        val args = mutableListOf("-y")
+        inputs.forEach { args += listOf("-i", it.absolutePath) }
+
+        val normalized = inputs.indices.joinToString("") { i ->
+            "[$i:a]aresample=44100,aformat=sample_fmts=fltp:channel_layouts=stereo[a$i];"
+        }
+        val concatInputs = inputs.indices.joinToString("") { "[a$it]" }
+        val filter = normalized + "$concatInputs" +
+            "concat=n=${inputs.size}:v=0:a=1[outa]"
+
+        args += listOf(
+            "-filter_complex", filter,
+            "-map", "[outa]",
+            "-vn",
+            "-c:a", "libmp3lame",
+            "-q:a", "2",
+            output.absolutePath
+        )
+        return execute(args)
+    }
+
+    fun pitchShift(input: File, output: File, semitones: Int): FfmpegResult {
+        if (semitones !in -12..12) return FfmpegResult(false, "升降调范围为 -12 到 +12 半音")
+        output.parentFile?.mkdirs()
+        output.delete()
+
+        val factor = Math.pow(2.0, semitones / 12.0)
+        val changedRate = 44100.0 * factor
+        val tempo = 1.0 / factor
+        val filter = String.format(
+            Locale.US,
+            "aresample=44100,asetrate=%.3f,aresample=44100,atempo=%.6f",
+            changedRate,
+            tempo
+        )
+
+        return execute(
+            listOf(
+                "-y",
+                "-i", input.absolutePath,
+                "-vn",
+                "-af", filter,
+                "-c:a", "libmp3lame",
+                "-q:a", "2",
+                output.absolutePath
+            )
+        )
+    }
+
+    data class MixTrack(
+        val file: File,
+        val offsetMs: Long = 0L,
+        val volume: Float = 1f
+    )
+
+    fun mix(tracks: List<MixTrack>, output: File): FfmpegResult {
+        if (tracks.size < 2) return FfmpegResult(false, "多轨混音至少需要两条轨道")
+        output.parentFile?.mkdirs()
+        output.delete()
+
+        val args = mutableListOf("-y")
+        tracks.forEach { args += listOf("-i", it.file.absolutePath) }
+
+        val filters = mutableListOf<String>()
+        tracks.forEachIndexed { index, track ->
+            val delay = track.offsetMs.coerceAtLeast(0L)
+            val volume = track.volume.coerceIn(0f, 2f)
+            filters += String.format(
+                Locale.US,
+                "[%d:a]aresample=44100,aformat=sample_fmts=fltp:channel_layouts=stereo," +
+                    "adelay=%d|%d,volume=%.3f[a%d]",
+                index, delay, delay, volume, index
+            )
+        }
+        val mixInputs = tracks.indices.joinToString("") { "[a$it]" }
+        filters += "$mixInputs" +
+            "amix=inputs=${tracks.size}:duration=longest:dropout_transition=0:normalize=0," +
+            "alimiter=limit=0.95[outa]"
+
+        args += listOf(
+            "-filter_complex", filters.joinToString(";"),
+            "-map", "[outa]",
+            "-vn",
+            "-c:a", "libmp3lame",
+            "-q:a", "2",
+            output.absolutePath
+        )
+        return execute(args)
+    }
+
     private fun codecArgs(ext: String): List<String> = when (ext.lowercase()) {
         "mp3" -> listOf("-c:a", "libmp3lame", "-q:a", "2")
         "flac" -> listOf("-c:a", "flac")
