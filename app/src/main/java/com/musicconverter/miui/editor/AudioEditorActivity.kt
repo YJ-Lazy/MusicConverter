@@ -2,8 +2,8 @@ package com.musicconverter.miui.editor
 
 import android.app.Activity
 import android.app.AlertDialog
+import android.content.Intent
 import android.content.res.ColorStateList
-import android.graphics.Color
 import android.media.MediaMetadataRetriever
 import android.media.MediaPlayer
 import android.net.Uri
@@ -18,6 +18,7 @@ import android.widget.TextView
 import android.widget.Toast
 import com.musicconverter.miui.core.AudioFileManager
 import com.musicconverter.miui.core.AudioFormatDetector
+import com.musicconverter.miui.core.ConversionEngine
 import com.musicconverter.miui.core.DeleteManager
 import com.musicconverter.miui.core.FfmpegEngine
 import com.musicconverter.miui.data.HistoryRepository
@@ -27,6 +28,8 @@ import java.io.File
 import java.util.Locale
 
 class AudioEditorActivity : Activity() {
+    private val pickAudioCode = 2201
+
     private var player: MediaPlayer? = null
     private val handler = Handler(Looper.getMainLooper())
     private var previewStopRunnable: Runnable? = null
@@ -45,6 +48,10 @@ class AudioEditorActivity : Activity() {
     }
 
     private lateinit var playButton: TextView
+    private lateinit var trimButton: TextView
+    private lateinit var chooseFileButton: TextView
+    private lateinit var fileNameText: TextView
+    private lateinit var durationText: TextView
     private lateinit var waveformView: WaveformView
     private lateinit var waveformMeta: TextView
     private var durationMs = 0L
@@ -56,9 +63,10 @@ class AudioEditorActivity : Activity() {
     private lateinit var startSeek: SeekBar
     private lateinit var endSeek: SeekBar
     private lateinit var status: TextView
-    private lateinit var input: File
-    private lateinit var displayName: String
-    private lateinit var sourceDisplayName: String
+
+    private var input: File? = null
+    private var displayName: String = ""
+    private var sourceDisplayName: String = ""
     private var sourceUri: Uri? = null
     private var sourceBackupFile: File? = null
 
@@ -74,15 +82,29 @@ class AudioEditorActivity : Activity() {
                 android.view.View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or
                     android.view.View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
             }
-        input = File(intent.getStringExtra("inputPath") ?: run { finish(); return })
-        displayName = intent.getStringExtra("displayName") ?: input.name
-        sourceDisplayName = intent.getStringExtra("sourceDisplayName") ?: displayName
-        sourceUri = intent.getStringExtra("sourceUri")?.let(Uri::parse)
-        sourceBackupFile = intent.getStringExtra("sourceBackupPath")?.let(::File)?.takeIf { it.exists() }
-        durationMs = readDuration(input)
-        endMs = durationMs
+
+        val initialPath = intent.getStringExtra("inputPath")
+        if (!initialPath.isNullOrBlank()) {
+            input = File(initialPath).takeIf { it.exists() && it.isFile }
+            input?.let { file ->
+                displayName = intent.getStringExtra("displayName") ?: file.name
+                sourceDisplayName = intent.getStringExtra("sourceDisplayName") ?: displayName
+                sourceUri = intent.getStringExtra("sourceUri")?.let(Uri::parse)
+                sourceBackupFile = intent.getStringExtra("sourceBackupPath")
+                    ?.let(::File)
+                    ?.takeIf { it.exists() }
+                durationMs = readDuration(file)
+                endMs = durationMs
+            }
+        }
+
         buildUi()
-        loadWaveform()
+
+        if (input != null) {
+            refreshLoadedFileUi(loadWaveform = true)
+        } else {
+            showEmptyEditor()
+        }
     }
 
     private fun buildUi() {
@@ -118,7 +140,7 @@ class AudioEditorActivity : Activity() {
             orientation = LinearLayout.VERTICAL
             setPadding(UiKit.dp(this@AudioEditorActivity, 14), 0, 0, 0)
             addView(UiKit.text(this@AudioEditorActivity, "音频剪辑", 25f, UiKit.TEXT, true))
-            addView(UiKit.text(this@AudioEditorActivity, "精确选择 · 试听 · 波形 · 保存", 12f, UiKit.TEXT_3).apply {
+            addView(UiKit.text(this@AudioEditorActivity, "先进入 · 再选文件 · 波形滑动选区", 12f, UiKit.TEXT_3).apply {
                 setPadding(0, UiKit.dp(this@AudioEditorActivity, 4), 0, 0)
             })
         }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
@@ -126,26 +148,63 @@ class AudioEditorActivity : Activity() {
 
         root.addView(UiKit.spacer(this, 20))
         val fileCard = UiKit.card(this, 24).apply {
-            background = UiKit.rounded(UiKit.primaryContainer(this@AudioEditorActivity), 24, this@AudioEditorActivity, UiKit.primaryContainer(this@AudioEditorActivity), 1)
+            background = UiKit.rounded(
+                UiKit.primaryContainer(this@AudioEditorActivity),
+                24,
+                this@AudioEditorActivity,
+                UiKit.primaryContainer(this@AudioEditorActivity),
+                1
+            )
         }
-        fileCard.addView(UiKit.text(this, "正在编辑", 11.5f, UiKit.themedColor(this@AudioEditorActivity, "#AEB8FF", "#6650D8"), true))
-        fileCard.addView(UiKit.text(this, displayName, 17f, UiKit.TEXT, true).apply {
+        fileCard.addView(
+            UiKit.text(
+                this,
+                "编辑文件",
+                11.5f,
+                UiKit.themedColor(this@AudioEditorActivity, "#AEB8FF", "#6650D8"),
+                true
+            )
+        )
+        fileNameText = UiKit.text(this, "尚未选择音频", 17f, UiKit.TEXT, true).apply {
             setPadding(0, UiKit.dp(this@AudioEditorActivity, 8), 0, 0)
             maxLines = 2
-        })
-        fileCard.addView(UiKit.text(this, "总时长 ${time(durationMs)}", 12.5f, UiKit.TEXT_2).apply {
+        }
+        fileCard.addView(fileNameText)
+
+        durationText = UiKit.text(this, "进入剪辑页后选择要编辑的文件", 12.5f, UiKit.TEXT_2).apply {
             setPadding(0, UiKit.dp(this@AudioEditorActivity, 9), 0, 0)
-        })
+        }
+        fileCard.addView(durationText)
+
+        chooseFileButton = UiKit.wideButton(this, "+", "选择 / 更换音频文件", true).apply {
+            setOnClickListener { chooseAudioFile() }
+        }
+        UiKit.margins(chooseFileButton, 0, 14, 0, 0)
+        fileCard.addView(chooseFileButton)
         root.addView(fileCard)
 
         root.addView(UiKit.spacer(this, 24))
-        root.addView(UiKit.sectionTitle(this, "波形预览", "亮色区域为选区，竖线为试听位置"))
+        root.addView(
+            UiKit.sectionTitle(
+                this,
+                "波形预览",
+                "直接在波形上拖动建立选区；拖左右边界微调，拖选区整体平移"
+            )
+        )
         root.addView(UiKit.spacer(this, 12))
 
         val waveformCard = UiKit.card(this, 24)
         waveformView = WaveformView(this).apply {
             minimumHeight = UiKit.dp(this@AudioEditorActivity, 148)
             updateSelection(startMs, endMs, durationMs)
+            setOnSelectionChangeListener { start, end ->
+                if (durationMs <= 0L) return@setOnSelectionChangeListener
+                stopPlayer()
+                startMs = start.coerceIn(0L, durationMs)
+                endMs = end.coerceIn(startMs, durationMs)
+                syncSeekBarsFromSelection()
+                updateLabels(updateWaveform = false)
+            }
         }
         waveformCard.addView(
             waveformView,
@@ -154,14 +213,14 @@ class AudioEditorActivity : Activity() {
                 UiKit.dp(this, 148)
             )
         )
-        waveformMeta = UiKit.text(this, "正在加载波形…", 11.5f, UiKit.TEXT_3).apply {
+        waveformMeta = UiKit.text(this, "选择音频后生成波形", 11.5f, UiKit.TEXT_3).apply {
             setPadding(0, UiKit.dp(this@AudioEditorActivity, 12), 0, 0)
         }
         waveformCard.addView(waveformMeta)
         root.addView(waveformCard)
 
         root.addView(UiKit.spacer(this, 24))
-        root.addView(UiKit.sectionTitle(this, "剪辑范围", "拖动两个滑块确定保留片段"))
+        root.addView(UiKit.sectionTitle(this, "剪辑范围", "波形手势和下面两个滑块会实时同步"))
         root.addView(UiKit.spacer(this, 12))
 
         val rangeCard = UiKit.card(this, 24)
@@ -211,17 +270,30 @@ class AudioEditorActivity : Activity() {
         )
         rangeCard.addView(labelsRow)
 
-        rangeLabel = UiKit.text(this, "", 13f, UiKit.themedColor(this@AudioEditorActivity, "#C8BFFF", "#6650D8"), true).apply {
+        rangeLabel = UiKit.text(
+            this,
+            "",
+            13f,
+            UiKit.themedColor(this@AudioEditorActivity, "#C8BFFF", "#6650D8"),
+            true
+        ).apply {
             gravity = Gravity.CENTER
-            setPadding(0, UiKit.dp(this@AudioEditorActivity, 18), 0, UiKit.dp(this@AudioEditorActivity, 5))
+            setPadding(
+                0,
+                UiKit.dp(this@AudioEditorActivity, 18),
+                0,
+                UiKit.dp(this@AudioEditorActivity, 5)
+            )
         }
         rangeCard.addView(rangeLabel)
 
         startSeek = SeekBar(this).apply {
-            max = durationMs.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+            max = 0
             progress = 0
             progressTintList = ColorStateList.valueOf(UiKit.ACCENT)
-            thumbTintList = ColorStateList.valueOf(UiKit.themedColor(this@AudioEditorActivity, "#CFC7FF", "#6650D8"))
+            thumbTintList = ColorStateList.valueOf(
+                UiKit.themedColor(this@AudioEditorActivity, "#CFC7FF", "#6650D8")
+            )
         }
         rangeCard.addView(UiKit.text(this, "起点", 11.5f, UiKit.TEXT_3, true).apply {
             setPadding(0, UiKit.dp(this@AudioEditorActivity, 10), 0, 0)
@@ -229,10 +301,12 @@ class AudioEditorActivity : Activity() {
         rangeCard.addView(startSeek)
 
         endSeek = SeekBar(this).apply {
-            max = startSeek.max
-            progress = startSeek.max
+            max = 0
+            progress = 0
             progressTintList = ColorStateList.valueOf(UiKit.ACCENT)
-            thumbTintList = ColorStateList.valueOf(UiKit.themedColor(this@AudioEditorActivity, "#CFC7FF", "#6650D8"))
+            thumbTintList = ColorStateList.valueOf(
+                UiKit.themedColor(this@AudioEditorActivity, "#CFC7FF", "#6650D8")
+            )
         }
         rangeCard.addView(UiKit.text(this, "终点", 11.5f, UiKit.TEXT_3, true).apply {
             setPadding(0, UiKit.dp(this@AudioEditorActivity, 8), 0, 0)
@@ -259,10 +333,16 @@ class AudioEditorActivity : Activity() {
         root.addView(row)
 
         root.addView(UiKit.spacer(this, 12))
-        val trim = UiKit.wideButton(this, "✓", "保存剪辑到 Music/MusicConverter", true).apply {
+        trimButton = UiKit.wideButton(this, "✓", "保存剪辑到 Music/MusicConverter", true).apply {
             gravity = Gravity.CENTER
         }
-        root.addView(trim, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, UiKit.dp(this, 58)))
+        root.addView(
+            trimButton,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                UiKit.dp(this, 58)
+            )
+        )
 
         root.addView(UiKit.spacer(this, 18))
         val statusCard = UiKit.card(this, 18).apply {
@@ -279,77 +359,243 @@ class AudioEditorActivity : Activity() {
             UiKit.text(this, "●", 11f, UiKit.SUCCESS, true),
             LinearLayout.LayoutParams(UiKit.dp(this, 24), LinearLayout.LayoutParams.WRAP_CONTENT)
         )
-        status = UiKit.text(this, "状态：等待编辑", 13f, UiKit.TEXT_2, true)
-        statusCard.addView(status, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+        status = UiKit.text(this, "状态：等待选择音频", 13f, UiKit.TEXT_2, true)
+        statusCard.addView(
+            status,
+            LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        )
         root.addView(statusCard)
-        updateLabels()
 
         startSeek.setOnSeekBarChangeListener(listener { value ->
-            startMs = value.toLong().coerceAtMost((endMs - 100).coerceAtLeast(0))
+            if (durationMs <= 0L) return@listener
+            startMs = value.toLong().coerceAtMost((endMs - minRangeMs()).coerceAtLeast(0))
             if (startSeek.progress != startMs.toInt()) startSeek.progress = startMs.toInt()
             updateLabels()
         })
         endSeek.setOnSeekBarChangeListener(listener { value ->
+            if (durationMs <= 0L) return@listener
             endMs = value.toLong()
-                .coerceAtLeast((startMs + 100).coerceAtMost(durationMs))
+                .coerceAtLeast((startMs + minRangeMs()).coerceAtMost(durationMs))
                 .coerceAtMost(durationMs)
             if (endSeek.progress != endMs.toInt()) endSeek.progress = endMs.toInt()
             updateLabels()
         })
         playButton.setOnClickListener { togglePreview() }
         reset.setOnClickListener {
+            if (input == null) return@setOnClickListener
             stopPlayer()
             startMs = 0
             endMs = durationMs
-            startSeek.progress = 0
-            endSeek.progress = endSeek.max
+            syncSeekBarsFromSelection()
             updateLabels()
         }
-        trim.setOnClickListener { saveTrim() }
+        trimButton.setOnClickListener { saveTrim() }
+
         setContentView(scroll)
     }
 
-    private fun loadWaveform() {
-        waveformView.setLoading(true)
-        waveformMeta.text = "正在加载波形…"
+    private fun chooseAudioFile() {
+        val picker = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "*/*"
+            addFlags(
+                Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                    Intent.FLAG_GRANT_WRITE_URI_PERMISSION or
+                    Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION
+            )
+        }
+        startActivityForResult(picker, pickAudioCode)
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode != pickAudioCode || resultCode != RESULT_OK) return
+        val uri = data?.data ?: return
+
+        val persistFlags = data.flags and (
+            Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+            )
+        runCatching {
+            contentResolver.takePersistableUriPermission(uri, persistFlags)
+        }
+
+        stopPlayer()
+        setEditorEnabled(false)
+        status.text = "状态：正在准备音频…"
+        fileNameText.text = "正在读取所选文件…"
+        durationText.text = "准备可编辑音频"
+
         Thread {
-            val samples = WaveformExtractor.extract(input, 180)
-            runOnUiThread {
-                waveformView.setLoading(false)
-                waveformView.setSamples(samples)
-                waveformView.updateSelection(startMs, endMs, durationMs)
-                waveformMeta.text = if (samples.isEmpty()) {
-                    "未能解析波形，仍可正常剪辑与试听。"
+            try {
+                val prepared = AudioFileManager.prepareInput(this, uri)
+                val (editableFile, error) = ConversionEngine(this).prepareEditable(prepared)
+                if (editableFile == null) {
+                    runOnUiThread {
+                        status.text = "无法准备编辑：${error ?: "未知错误"}"
+                        fileNameText.text = "文件准备失败"
+                        durationText.text = prepared.displayName
+                        setEditorEnabled(false)
+                    }
+                    return@Thread
+                }
+
+                val editorName = if (AudioFormatDetector.isEncrypted(prepared.displayName)) {
+                    editableFile.name
                 } else {
-                    "共绘制 ${samples.size} 个波形采样点，可辅助选择剪辑范围。"
+                    prepared.displayName
+                }
+
+                runOnUiThread {
+                    input = editableFile
+                    displayName = editorName
+                    sourceDisplayName = prepared.displayName
+                    sourceUri = prepared.originalUri
+                    sourceBackupFile = prepared.localFile
+                    durationMs = readDuration(editableFile)
+                    startMs = 0L
+                    endMs = durationMs
+                    refreshLoadedFileUi(loadWaveform = true)
+                    status.text = "状态：已载入 ${prepared.displayName}"
+                }
+            } catch (t: Throwable) {
+                runOnUiThread {
+                    status.text = "读取失败：${t.message ?: t.javaClass.simpleName}"
+                    fileNameText.text = "未能载入文件"
+                    durationText.text = "请重新选择音频"
+                    setEditorEnabled(false)
                 }
             }
         }.start()
     }
 
-    private fun listener(onChange: (Int) -> Unit) = object : SeekBar.OnSeekBarChangeListener {
-        override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-            if (fromUser) onChange(progress)
-        }
-        override fun onStartTrackingTouch(seekBar: SeekBar?) {
-            if (player != null) stopPlayer()
-        }
-        override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+    private fun showEmptyEditor() {
+        input = null
+        displayName = ""
+        sourceDisplayName = ""
+        sourceUri = null
+        sourceBackupFile = null
+        durationMs = 0L
+        startMs = 0L
+        endMs = 0L
+
+        fileNameText.text = "尚未选择音频"
+        durationText.text = "可以先进入剪辑器，再在这里选择文件"
+        waveformView.setLoading(false)
+        waveformView.setSamples(emptyList())
+        waveformView.updateSelection(0L, 0L, 0L)
+        waveformMeta.text = "选择音频后，可直接在波形上滑动选择范围"
+        startSeek.max = 0
+        startSeek.progress = 0
+        endSeek.max = 0
+        endSeek.progress = 0
+        updateLabels()
+        setEditorEnabled(false)
+        status.text = "状态：等待选择音频"
     }
 
-    private fun updateLabels() {
+    private fun refreshLoadedFileUi(loadWaveform: Boolean) {
+        val file = input ?: return
+        durationMs = readDuration(file)
+        startMs = startMs.coerceIn(0L, durationMs)
+        endMs = if (endMs <= 0L) durationMs else endMs.coerceIn(startMs, durationMs)
+
+        fileNameText.text = displayName.ifBlank { file.name }
+        durationText.text = "总时长 ${time(durationMs)}"
+        val maxValue = durationMs.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+        startSeek.max = maxValue
+        endSeek.max = maxValue
+        syncSeekBarsFromSelection()
+        updateLabels()
+        setEditorEnabled(durationMs > 0L)
+
+        if (loadWaveform) loadWaveform()
+    }
+
+    private fun setEditorEnabled(enabled: Boolean) {
+        startSeek.isEnabled = enabled
+        endSeek.isEnabled = enabled
+        playButton.isEnabled = enabled
+        trimButton.isEnabled = enabled
+        startSeek.alpha = if (enabled) 1f else 0.45f
+        endSeek.alpha = if (enabled) 1f else 0.45f
+        playButton.alpha = if (enabled) 1f else 0.45f
+        trimButton.alpha = if (enabled) 1f else 0.45f
+    }
+
+    private fun loadWaveform() {
+        val file = input ?: return
+        waveformView.setLoading(true)
+        waveformMeta.text = "正在加载波形…"
+        Thread {
+            val samples = WaveformExtractor.extract(file, 180)
+            runOnUiThread {
+                if (input != file) return@runOnUiThread
+                waveformView.setLoading(false)
+                waveformView.setSamples(samples)
+                waveformView.updateSelection(startMs, endMs, durationMs)
+                waveformMeta.text = if (samples.isEmpty()) {
+                    "未能解析波形，仍可用滑块正常剪辑与试听。"
+                } else {
+                    "拖动空白处新建选区；拖边界微调；拖选区整体平移。"
+                }
+            }
+        }.start()
+    }
+
+    private fun listener(onChange: (Int) -> Unit) =
+        object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(
+                seekBar: SeekBar?,
+                progress: Int,
+                fromUser: Boolean
+            ) {
+                if (fromUser) onChange(progress)
+            }
+
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {
+                if (player != null) stopPlayer()
+            }
+
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+        }
+
+    private fun syncSeekBarsFromSelection() {
+        if (!::startSeek.isInitialized || !::endSeek.isInitialized) return
+        val max = durationMs.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+        if (startSeek.max != max) startSeek.max = max
+        if (endSeek.max != max) endSeek.max = max
+        val start = startMs.coerceAtMost(max.toLong()).toInt()
+        val end = endMs.coerceAtMost(max.toLong()).toInt()
+        if (startSeek.progress != start) startSeek.progress = start
+        if (endSeek.progress != end) endSeek.progress = end
+    }
+
+    private fun updateLabels(updateWaveform: Boolean = true) {
+        if (!::startLabel.isInitialized) return
         startLabel.text = time(startMs)
         endLabel.text = time(endMs)
         rangeLabel.text = "选区时长  ${time((endMs - startMs).coerceAtLeast(0))}"
-        if (::waveformView.isInitialized) {
+        if (updateWaveform && ::waveformView.isInitialized) {
             waveformView.updateSelection(startMs, endMs, durationMs)
         }
     }
 
+    private fun minRangeMs(): Long = minOf(100L, durationMs.coerceAtLeast(1L))
+
     private fun togglePreview() {
+        val inputFile = input ?: run {
+            status.text = "请先选择音频文件"
+            return
+        }
+        if (durationMs <= 0L || endMs <= startMs) {
+            status.text = "请选择有效剪辑范围"
+            return
+        }
+
         val current = player
         if (current == null) {
-            startPreview()
+            startPreview(inputFile)
             return
         }
 
@@ -359,19 +605,20 @@ class AudioEditorActivity : Activity() {
                 cancelPreviewTimer()
                 stopPlaybackTicker()
                 val pausedAt = current.currentPosition.toLong()
-                if (::waveformView.isInitialized) waveformView.updatePlayback(pausedAt)
+                waveformView.updatePlayback(pausedAt)
                 playButton.text = "▶   继续试听"
                 status.text = "状态：试听已暂停 · ${time(pausedAt)}"
             } else {
                 if (current.currentPosition.toLong() >= endMs - 50L) {
                     stopPlayer()
-                    startPreview()
+                    startPreview(inputFile)
                 } else {
                     current.start()
                     schedulePreviewStop(current.currentPosition.toLong())
                     startPlaybackTicker()
                     playButton.text = "Ⅱ   暂停试听"
-                    status.text = "状态：继续试听 · ${time(current.currentPosition.toLong())} / ${time(endMs)}"
+                    status.text =
+                        "状态：继续试听 · ${time(current.currentPosition.toLong())} / ${time(endMs)}"
                 }
             }
         } catch (t: Throwable) {
@@ -380,17 +627,17 @@ class AudioEditorActivity : Activity() {
         }
     }
 
-    private fun startPreview() {
+    private fun startPreview(inputFile: File) {
         stopPlayer()
         try {
             player = MediaPlayer().apply {
-                setDataSource(input.absolutePath)
+                setDataSource(inputFile.absolutePath)
                 prepare()
                 seekTo(startMs.toInt())
                 setOnCompletionListener { finishPreview("状态：试听结束") }
                 start()
             }
-            if (::waveformView.isInitialized) waveformView.updatePlayback(startMs)
+            waveformView.updatePlayback(startMs)
             playButton.text = "Ⅱ   暂停试听"
             status.text = "状态：正在试听 ${time(startMs)} - ${time(endMs)}"
             schedulePreviewStop(startMs)
@@ -425,30 +672,45 @@ class AudioEditorActivity : Activity() {
 
     private fun finishPreview(message: String) {
         stopPlayer()
-        if (::waveformView.isInitialized) waveformView.updatePlayback(endMs)
+        waveformView.updatePlayback(endMs)
         status.text = message
     }
 
     private fun saveTrim() {
+        val inputFile = input ?: run {
+            status.text = "请先选择音频文件"
+            return
+        }
         if (endMs <= startMs) {
             status.text = "请选择有效剪辑范围"
             return
         }
+
         status.text = "状态：正在剪辑…"
         Thread {
             val ext = AudioFormatDetector.extension(displayName)
-                .ifBlank { AudioFormatDetector.extension(input) }
+                .ifBlank { AudioFormatDetector.extension(inputFile) }
                 .ifBlank { "m4a" }
-            val outName = AudioFileManager.outputName(displayName, ext, "trim")
+            val outName = AudioFileManager.outputName(
+                displayName.ifBlank { inputFile.name },
+                ext,
+                "trim"
+            )
             val out = File(File(cacheDir, "edits").apply { mkdirs() }, outName)
-            val result = FfmpegEngine.trim(input, out, startMs, endMs)
+            val result = FfmpegEngine.trim(inputFile, out, startMs, endMs)
             if (!result.success) {
                 runOnUiThread { status.text = "剪辑失败：${result.message}" }
                 return@Thread
             }
+
             try {
                 val published = AudioFileManager.publishAudio(this, out, outName)
-                HistoryRepository(this).record(displayName, outName, "剪辑", "完成")
+                HistoryRepository(this).record(
+                    displayName.ifBlank { inputFile.name },
+                    outName,
+                    "剪辑",
+                    "完成"
+                )
                 runOnUiThread {
                     status.text = "已保存到 Music/MusicConverter/$outName"
                     showFinishedDialog(outName, published)
@@ -484,6 +746,7 @@ class AudioEditorActivity : Activity() {
                             Toast.LENGTH_LONG
                         ).show()
                     }
+
                     2 -> {
                         val replace = AudioFileManager.replaceOriginal(
                             this,
@@ -495,10 +758,16 @@ class AudioEditorActivity : Activity() {
                         )
                         Toast.makeText(
                             this,
-                            if (replace.success) "已用剪辑结果置换源文件" else "置换失败：${replace.message}；源文件已保留",
+                            if (replace.success) {
+                                "已用剪辑结果置换源文件"
+                            } else {
+                                "置换失败：${replace.message}；源文件已保留"
+                            },
                             Toast.LENGTH_LONG
                         ).show()
-                        if (replace.success) status.text = "状态：已用剪辑结果置换源文件"
+                        if (replace.success) {
+                            status.text = "状态：已用剪辑结果置换源文件"
+                        }
                     }
                 }
             }
@@ -509,7 +778,9 @@ class AudioEditorActivity : Activity() {
     private fun readDuration(file: File): Long = try {
         MediaMetadataRetriever().run {
             setDataSource(file.absolutePath)
-            val d = extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L
+            val d = extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
+                ?.toLongOrNull()
+                ?: 0L
             release()
             d
         }
@@ -519,7 +790,13 @@ class AudioEditorActivity : Activity() {
 
     private fun time(ms: Long): String {
         val total = ms / 1000
-        return String.format(Locale.getDefault(), "%02d:%02d.%03d", total / 60, total % 60, ms % 1000)
+        return String.format(
+            Locale.getDefault(),
+            "%02d:%02d.%03d",
+            total / 60,
+            total % 60,
+            ms % 1000
+        )
     }
 
     private fun stopPlayer() {
