@@ -31,6 +31,7 @@
             android:stopWithTask="false"
             android:foregroundServiceType="dataSync" />
         <activity android:name=".editor.AudioEditorActivity" android:exported="false" />
+        <activity android:name=".editor.AdvancedAudioEditorActivity" android:exported="false" />
         <activity android:name=".MainActivity" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
