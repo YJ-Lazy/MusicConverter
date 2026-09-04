@@ -1,12 +1,9 @@
 {
-  "versionCode": 32,
-  "versionName": "2.0",
-  "title": "MusicConverter 2.0",
+  "versionCode": 33,
+  "versionName": "2.1",
+  "title": "MusicConverter 2.1",
   "changelog": [
-    "以已验证的 1.10.0 稳定功能为正式版基线",
-    "版本号更新为 2.0（versionCode 32）",
-    "GitHub Actions 改为直接编译真实源码，不再使用 Kotlin 压缩/分片还原",
-    "保留自动 Debug 构建、签名 Release、GitHub Release 与 SHA-256 校验"
+    "丰富了剪辑内容，增加了转换之后的选项"
   ],
   "quarkUrl": "https://pan.quark.cn/s/bc7cbd178f5a",
   "force": false,
