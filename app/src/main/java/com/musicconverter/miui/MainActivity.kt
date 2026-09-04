@@ -29,6 +29,7 @@ import android.widget.Toast
 import com.musicconverter.miui.core.*
 import com.musicconverter.miui.data.HistoryRepository
 import com.musicconverter.miui.editor.AudioEditorActivity
+import com.musicconverter.miui.editor.AdvancedAudioEditorActivity
 import com.musicconverter.miui.scanner.FullStorageAudioScanner
 import com.musicconverter.miui.scanner.MusicAppScanner
 import com.musicconverter.miui.scanner.ScannedAudio
@@ -184,8 +185,9 @@ class MainActivity : Activity() {
 
         val homePage = buildHomePage()
         val batchPage = buildBatchPage()
+        val editorPage = buildEditorPage()
         val aboutPage = buildAboutPage()
-        val pages = listOf<View>(homePage, batchPage, aboutPage)
+        val pages = listOf<View>(homePage, batchPage, editorPage, aboutPage)
         pages.forEach { pageHost.addView(it, FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.MATCH_PARENT,
             FrameLayout.LayoutParams.MATCH_PARENT
@@ -218,8 +220,9 @@ class MainActivity : Activity() {
 
         val homeNav = UiKit.navItem(this, "⌂", "首页")
         val batchNav = UiKit.navItem(this, "≋", "批量")
+        val editorNav = UiKit.navItem(this, "✂", "编辑")
         val aboutNav = UiKit.navItem(this, "ⓘ", "介绍")
-        val navItems = listOf(homeNav, batchNav, aboutNav)
+        val navItems = listOf(homeNav, batchNav, editorNav, aboutNav)
         navItems.forEachIndexed { index, item ->
             navigation.addView(item, LinearLayout.LayoutParams(0, UiKit.dp(this, 58), 1f).apply {
                 if (index > 0) leftMargin = UiKit.dp(this@MainActivity, 5)
@@ -233,7 +236,8 @@ class MainActivity : Activity() {
         }
         homeNav.setOnClickListener { selectPage(0) }
         batchNav.setOnClickListener { selectPage(1) }
-        aboutNav.setOnClickListener { selectPage(2) }
+        editorNav.setOnClickListener { selectPage(2) }
+        aboutNav.setOnClickListener { selectPage(3) }
         selectPage(0)
 
         setContentView(screen)
@@ -371,9 +375,6 @@ class MainActivity : Activity() {
         root.addView(UiKit.spacer(this, 28))
         root.addView(UiKit.sectionLabel(this, "功能中心"))
 
-        val actionRow = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-        }
         val convertButton = UiKit.featureTile(
             this,
             "⇄",
@@ -382,33 +383,7 @@ class MainActivity : Activity() {
             "常用",
             true
         )
-        val editButton = UiKit.featureTile(
-            this,
-            "✂",
-            "编辑 / 剪辑",
-            "波形 · 选区 · 试听 · 导出"
-        )
-        actionRow.addView(
-            convertButton,
-            LinearLayout.LayoutParams(
-                0,
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                1f
-            ).apply {
-                rightMargin = UiKit.dp(this@MainActivity, 6)
-            }
-        )
-        actionRow.addView(
-            editButton,
-            LinearLayout.LayoutParams(
-                0,
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                1f
-            ).apply {
-                leftMargin = UiKit.dp(this@MainActivity, 6)
-            }
-        )
-        root.addView(actionRow)
+        root.addView(convertButton)
 
         root.addView(UiKit.spacer(this, 20))
         root.addView(UiKit.sectionLabel(this, "文件处理"))
@@ -450,8 +425,121 @@ class MainActivity : Activity() {
 
         selectButton.setOnClickListener { chooseFile() }
         convertButton.setOnClickListener { showConvertDialog() }
-        editButton.setOnClickListener { openEditor() }
         return scroll
+    }
+
+    private fun buildEditorPage(): ScrollView {
+        val (scroll, root) = pageRoot()
+
+        root.addView(UiKit.text(this, "音频编辑", 31f, UiKit.TEXT, true))
+        root.addView(
+            UiKit.text(
+                this,
+                "剪辑 · 拼接 · 分割 · 升降调 · 多轨混音",
+                12.5f,
+                UiKit.TEXT_3
+            ).apply {
+                setPadding(0, UiKit.dp(this@MainActivity, 6), 0, 0)
+            }
+        )
+
+        root.addView(UiKit.spacer(this, 22))
+
+        val trim = UiKit.featureTile(
+            this,
+            "✂",
+            "波形剪辑",
+            "直接拖动波形建立选区，试听后导出",
+            "波形",
+            true
+        )
+        trim.setOnClickListener { openEditor() }
+        root.addView(trim)
+
+        root.addView(UiKit.spacer(this, 12))
+
+        val row1 = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        val concat = UiKit.featureTile(
+            this,
+            "⇥",
+            "音频拼接",
+            "多段音频按选择顺序合并"
+        )
+        val split = UiKit.featureTile(
+            this,
+            "┃",
+            "音频分割",
+            "指定时间点一分为二"
+        )
+        row1.addView(
+            concat,
+            LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
+                rightMargin = UiKit.dp(this@MainActivity, 6)
+            }
+        )
+        row1.addView(
+            split,
+            LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
+                leftMargin = UiKit.dp(this@MainActivity, 6)
+            }
+        )
+        root.addView(row1)
+
+        root.addView(UiKit.spacer(this, 12))
+
+        val row2 = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        val pitch = UiKit.featureTile(
+            this,
+            "♯",
+            "升降调",
+            "-12 ～ +12 半音，尽量保持时长"
+        )
+        val multitrack = UiKit.featureTile(
+            this,
+            "≡",
+            "多轨编辑",
+            "最多 4 轨 · 偏移 · 音量 · 混音"
+        )
+        row2.addView(
+            pitch,
+            LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
+                rightMargin = UiKit.dp(this@MainActivity, 6)
+            }
+        )
+        row2.addView(
+            multitrack,
+            LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
+                leftMargin = UiKit.dp(this@MainActivity, 6)
+            }
+        )
+        root.addView(row2)
+
+        root.addView(UiKit.spacer(this, 20))
+        val note = UiKit.card(this, 20)
+        note.addView(
+            UiKit.text(
+                this,
+                "所有处理均在本机完成。高级编辑结果默认保存到 Music/MusicConverter。",
+                12.5f,
+                UiKit.TEXT_2
+            ).apply {
+                setLineSpacing(0f, 1.2f)
+            }
+        )
+        root.addView(note)
+
+        concat.setOnClickListener { openAdvancedEditor("CONCAT") }
+        split.setOnClickListener { openAdvancedEditor("SPLIT") }
+        pitch.setOnClickListener { openAdvancedEditor("PITCH") }
+        multitrack.setOnClickListener { openAdvancedEditor("MULTITRACK") }
+
+        return scroll
+    }
+
+    private fun openAdvancedEditor(mode: String) {
+        startActivity(Intent(this, AdvancedAudioEditorActivity::class.java).apply {
+            putExtra("mode", mode)
+        })
     }
 
     private fun buildBatchPage(): ScrollView {
