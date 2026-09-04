@@ -5,7 +5,13 @@ import android.net.Uri
 import com.musicconverter.miui.data.HistoryRepository
 import java.io.File
 
-data class ConversionResult(val success: Boolean, val outputUri: Uri? = null, val error: String = "", val outputName: String = "")
+data class ConversionResult(
+    val success: Boolean,
+    val outputUri: Uri? = null,
+    val error: String = "",
+    val outputName: String = "",
+    val tempFile: File? = null
+)
 
 class ConversionEngine(private val context: Context) {
     private val unlocker = PythonUnlockEngine(context)
@@ -53,6 +59,53 @@ class ConversionEngine(private val context: Context) {
             history.record(input.displayName, outName, "保存", "失败: ${t.message}")
             ConversionResult(false, error = "保存失败: ${t.message}")
         }
+    }
+
+    fun convertToTemp(
+        input: PreparedAudio,
+        target: AudioOutputFormat,
+        ffmpegThreads: Int? = null
+    ): ConversionResult {
+        var working = input.localFile
+        var sourceContainer = AudioFormatDetector.extension(input.displayName)
+        if (AudioFormatDetector.isEncrypted(input.displayName)) {
+            history.record(input.displayName, "", "解密", "处理中")
+            val unlock = unlocker.unlock(input.localFile)
+            if (!unlock.success || unlock.file == null) {
+                history.record(input.displayName, "", "解密", "失败: ${unlock.error}")
+                return ConversionResult(false, error = unlock.error)
+            }
+            working = unlock.file
+            sourceContainer = unlock.container.ifBlank { AudioFormatDetector.extension(working) }
+        }
+
+        val outName = AudioFileManager.outputName(input.displayName, target.extension)
+        val outputDir = File(context.cacheDir, "outputs").apply { mkdirs() }
+        val tempOut = File.createTempFile("convert_", ".${target.extension}", outputDir)
+        val needsTranscode = sourceContainer.lowercase() != target.extension.lowercase()
+        val result = if (needsTranscode) {
+            FfmpegEngine.convert(working, tempOut, target, ffmpegThreads)
+        } else {
+            working.copyTo(tempOut, overwrite = true)
+            FfmpegResult(true)
+        }
+
+        if (working != input.localFile && working.absolutePath.startsWith(context.cacheDir.absolutePath)) {
+            working.delete()
+            working.parentFile?.takeIf { it.name.startsWith("unlock_") }?.delete()
+        }
+
+        if (!result.success) {
+            tempOut.delete()
+            history.record(input.displayName, outName, "转换", "失败: ${result.message}")
+            return ConversionResult(false, error = result.message)
+        }
+
+        return ConversionResult(
+            success = true,
+            outputName = outName,
+            tempFile = tempOut
+        )
     }
 
     fun prepareEditable(input: PreparedAudio): Pair<File?, String?> {
