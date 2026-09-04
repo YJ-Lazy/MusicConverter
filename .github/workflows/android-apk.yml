@@ -14,7 +14,7 @@ on:
         default: false
         type: boolean
       release_tag:
-        description: "Optional tag, e.g. v2.0"
+        description: "Optional tag, e.g. v2.1"
         required: false
         type: string
 
@@ -78,13 +78,13 @@ jobs:
         shell: bash
         run: |
           mkdir -p dist
-          cp app/build/outputs/apk/debug/app-debug.apk dist/MusicConverter-v2.0-debug.apk
-          sha256sum dist/MusicConverter-v2.0-debug.apk > dist/MusicConverter-v2.0-debug.apk.sha256
+          cp app/build/outputs/apk/debug/app-debug.apk dist/MusicConverter-v2.1-debug.apk
+          sha256sum dist/MusicConverter-v2.1-debug.apk > dist/MusicConverter-v2.1-debug.apk.sha256
 
       - name: Upload Debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: MusicConverter-v2.0-debug-${{ github.sha }}
+          name: MusicConverter-v2.1-debug-${{ github.sha }}
           path: dist/*
           if-no-files-found: error
           retention-days: 30
