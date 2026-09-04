@@ -83,6 +83,16 @@ object AudioFileManager {
         )
     }
 
+    fun saveToUri(context: Context, source: File, target: Uri) {
+        context.contentResolver.openOutputStream(target, "w").use { output ->
+            requireNotNull(output) { "无法写入所选位置" }
+            source.inputStream().use { input ->
+                input.copyTo(output)
+                output.flush()
+            }
+        }
+    }
+
     fun publishAudio(context: Context, source: File, displayName: String): Uri {
         val values = ContentValues().apply {
             put(MediaStore.Audio.Media.DISPLAY_NAME, displayName)
