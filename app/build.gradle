@@ -1,0 +1,94 @@
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+    id 'org.jetbrains.kotlin.kapt'
+    id 'com.chaquo.python'
+}
+
+android {
+    namespace "com.musicconverter.miui"
+    compileSdk 35
+
+    def releaseStoreFile = System.getenv("RELEASE_STORE_FILE")
+    def releaseStorePassword = System.getenv("RELEASE_STORE_PASSWORD")
+    def releaseKeyAlias = System.getenv("RELEASE_KEY_ALIAS")
+    def releaseKeyPassword = System.getenv("RELEASE_KEY_PASSWORD")
+    def hasReleaseSigning = releaseStoreFile && releaseStorePassword && releaseKeyAlias && releaseKeyPassword
+
+    signingConfigs {
+        release {
+            if (hasReleaseSigning) {
+                storeFile file(releaseStoreFile)
+                storePassword releaseStorePassword
+                keyAlias releaseKeyAlias
+                keyPassword releaseKeyPassword
+            }
+        }
+    }
+
+    defaultConfig {
+        applicationId "com.musicconverter.miui"
+        minSdk 29
+        targetSdk 35
+        versionCode 32
+        versionName "2.0"
+
+        ndk {
+            abiFilters "arm64-v8a", "armeabi-v7a"
+        }
+    }
+
+    buildTypes {
+        debug {
+            minifyEnabled false
+        }
+
+        release {
+            minifyEnabled false
+            if (hasReleaseSigning) {
+                signingConfig signingConfigs.release
+            }
+            proguardFiles getDefaultProguardFile(
+                    'proguard-android-optimize.txt'
+            ), 'proguard-rules.pro'
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+
+    packagingOptions {
+        jniLibs {
+            useLegacyPackaging = true
+        }
+    }
+}
+
+chaquopy {
+    defaultConfig {
+        version "3.11"
+
+        if (System.getProperty("os.name").toLowerCase().contains("windows")) {
+            buildPython("py", "-3.11")
+        } else {
+            buildPython("python3")
+        }
+
+        pip {
+            install "pycryptodome==3.21.0"
+            install "mutagen==1.47.0"
+        }
+    }
+}
+
+dependencies {
+    implementation project(':ffmpeg-kit')
+    implementation "androidx.room:room-runtime:2.6.1"
+    kapt "androidx.room:room-compiler:2.6.1"
+}
