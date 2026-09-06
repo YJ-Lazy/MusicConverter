@@ -14,7 +14,7 @@ on:
         default: false
         type: boolean
       release_tag:
-        description: "Optional tag, e.g. v2.1"
+        description: "Optional tag, e.g. v2.3"
         required: false
         type: string
 
@@ -75,16 +75,20 @@ jobs:
         run: ./gradlew :app:assembleDebug --no-daemon --stacktrace
 
       - name: Stage Debug APK
+        id: debug_version
         shell: bash
         run: |
+          VERSION=$(sed -n 's/^[[:space:]]*versionName[[:space:]]*"\([^"]*\)".*/\1/p' app/build.gradle | head -n 1)
+          test -n "$VERSION" || { echo "Unable to read versionName"; exit 1; }
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           mkdir -p dist
-          cp app/build/outputs/apk/debug/app-debug.apk dist/MusicConverter-v2.1-debug.apk
-          sha256sum dist/MusicConverter-v2.1-debug.apk > dist/MusicConverter-v2.1-debug.apk.sha256
+          cp app/build/outputs/apk/debug/app-debug.apk "dist/MusicConverter-v${VERSION}-debug.apk"
+          sha256sum "dist/MusicConverter-v${VERSION}-debug.apk" > "dist/MusicConverter-v${VERSION}-debug.apk.sha256"
 
       - name: Upload Debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: MusicConverter-v2.1-debug-${{ github.sha }}
+          name: MusicConverter-v${{ steps.debug_version.outputs.version }}-debug-${{ github.sha }}
           path: dist/*
           if-no-files-found: error
           retention-days: 30
@@ -94,7 +98,8 @@ jobs:
     needs: build-debug
     if: >-
       startsWith(github.ref, 'refs/tags/v') ||
-      (github.event_name == 'workflow_dispatch' && inputs.publish_release)
+      (github.event_name == 'workflow_dispatch' && inputs.publish_release) ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, '[release]'))
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
