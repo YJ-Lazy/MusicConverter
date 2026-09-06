@@ -1,0 +1,19 @@
+{
+  "versionCode": 35,
+  "versionName": "2.3",
+  "title": "MusicConverter 2.3",
+  "changelog": [
+    "首页改为本地音乐列表，支持缓存恢复与分批加载，减少重复扫描和滚动卡顿",
+    "本地音乐缺少封面时可联网补全并缓存封面",
+    "新增当前播放列表，可添加、删除和清空歌曲，支持顺序播放、单曲循环与随机播放",
+    "新增播放通知栏提示，并优化系统状态栏避让",
+    "单文件转换移入“转码”，与批量转码集中管理",
+    "设置页集中主题、权限、缓存、历史、检测等功能，并保留介绍信息",
+    "加入在线音乐聚合与播放能力；该功能不维护，第三方音源可用性不作保证"
+  ],
+  "quarkUrl": "https://pan.quark.cn/s/bc7cbd178f5a",
+  "force": false,
+  "minSupportedVersionCode": 12,
+  "lanzouUrl": "https://ssssvip.lanzoue.com/b0xxjc13c",
+  "lanzouPassword": "6666"
+}
