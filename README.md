@@ -8,8 +8,9 @@
 ## 交流群
 
 QQ 交流群：**1054469058**
+补丁更新在群内，完整工程大版本才发
 
-[点击加入 QQ 群](https://qm.qq.com/q/1054469058)
+[点击加入 QQ 群](https://qun.qq.com/universal-share/share?ac=1&authKey=JcKz80622TQmer8X09e8Ced42WNiCW99YEd7x8DN9g9XAQBYzX84vrNkH4AhD0oi&busi_data=eyJncm91cENvZGUiOiIxMDU0NDY5MDU4IiwidG9rZW4iOiJBS3FqVEpwZDZYLzRQa2ZzbnBqM01xYkFyY3RwcTJUQnZtTzZQcFdHdVFkdDdZQzJ4WElPYjBZNThBZUN3UkFUIiwidWluIjoiMjAxOTc3MzI5NCJ9&data=S8z8j1WPNFY3Wrz_D7H3Mc51nF3TuWynygDTvuBGrf3v14Wb227Bx3ZfQskERsNt-o6zD19hgdPaoYeqnW4v_A&svctype=4&tempid=h5_group_info)
 
 如果链接无法直接打开，请在 QQ 中搜索群号 **1054469058** 加入。
 
