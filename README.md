@@ -19,11 +19,6 @@ QQ 交流群：**1054469058**
 - **目录标签横向浏览**：目录标签栏可左右滑动查看全部目录，点击标签切换当前目录，浏览目录标签时不会带动首页整体滚动。
 - **列表切换体验优化**：目录列表切换使用淡出与滑入动画，并兼容旧缓存；旧缓存缺少目录信息时会自动重新扫描。
 
-## v2.4 更新内容
-
-- **QMC 兼容性增强**：支持 `.mgg0.flac`、`.mflac.flac`、`.qmc0.mp3` 等混合 / 复合后缀，优化 QMC1 / QMC2 格式识别与路由，并补充 `.mflach`、`.qmflac` 等格式识别。
-- **开源组件声明补充**：新增 QMCDecode、Kugo-Music-Converter 相关开源来源与许可说明，详细信息见 `THIRD_PARTY_NOTICES.md`。
-
 ## 主要功能
 
 - 首页直接列出设备中的本地音乐
@@ -84,7 +79,7 @@ QQ 交流群：**1054469058**
 工程包含对以下类型的识别与处理能力：
 
 - 网易云音乐 NCM
-- QQ 音乐 QMC / MFLAC 等格式
+- QQ 音乐 QMC / MFLAC 等格式（含 `.mgg0.flac`、`.mflac.flac`、`.qmc0.mp3` 等复合后缀，支持 QMC1 / QMC2 识别与路由）
 - 酷狗 KGM / KGMA / VPR
 - 酷我 KWM
 
@@ -180,6 +175,7 @@ Release 构建需要配置对应的签名信息。
 - PyCryptodome
 - Mutagen
 - Android Room
+- QMCDecode、Kugo-Music-Converter（相关来源与许可见 `THIRD_PARTY_NOTICES.md`）
 
 ## 项目定位
 
