@@ -6,11 +6,12 @@
     "QMC 兼容性增强：支持 .mgg0.flac、.mflac.flac、.qmc0.mp3 等混合/复合后缀，优化 QMC1/QMC2 格式识别与路由，并补充 .mflach、.qmflac 等格式识别",
     "开源组件声明补充：新增 QMCDecode、Kugo-Music-Converter 相关开源来源与许可说明"
   ],
+  "githubUrl": "https://github.com/YJ-Lazy/MusicConverter/releases/latest",
   "quarkUrl": "https://pan.quark.cn/s/bc7cbd178f5a",
-  "force": true,
-  "minSupportedVersionCode": 36,
   "lanzouUrl": "https://ssssvip.lanzoue.com/b0xxjc13c",
   "lanzouPassword": "6666",
+  "force": true,
+  "minSupportedVersionCode": 36,
   "allowedStayVersionCodes": [],
   "blockedVersionCodes": []
 }
