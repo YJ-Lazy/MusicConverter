@@ -19,8 +19,6 @@ import android.provider.Settings
 import android.provider.MediaStore
 import android.content.ContentUris
 import android.view.Gravity
-import android.view.MotionEvent
-import android.view.animation.DecelerateInterpolator
 import android.view.View
 import android.widget.CheckBox
 import android.widget.FrameLayout
@@ -103,7 +101,6 @@ class MainActivity : Activity() {
     private var localMusicSelectedDirectory: String? = null
     private var localMusicDirectoryTabs: LinearLayout? = null
     private var localMusicDirectoryTabScroll: HorizontalScrollView? = null
-    private var localMusicDirectoryAnimating = false
     private var localMusicRenderedCount = 0
     private var localMusicPageLoading = false
     private val localMusicPageSize = 40
@@ -357,62 +354,7 @@ class MainActivity : Activity() {
     }
 
     private fun buildHomePage(): ScrollView {
-        var touchDownX = 0f
-        var touchDownY = 0f
-        var horizontalGesture = false
-        val scroll = object : ScrollView(this) {
-            override fun dispatchTouchEvent(event: MotionEvent): Boolean {
-                when (event.actionMasked) {
-                    MotionEvent.ACTION_DOWN -> {
-                        touchDownX = event.x
-                        touchDownY = event.y
-                        horizontalGesture = false
-                    }
-                    MotionEvent.ACTION_MOVE -> {
-                        val dx = event.x - touchDownX
-                        val dy = event.y - touchDownY
-                        if (!horizontalGesture &&
-                            kotlin.math.abs(dx) >= UiKit.dp(this@MainActivity, 36) &&
-                            kotlin.math.abs(dx) > kotlin.math.abs(dy) * 1.25f
-                        ) {
-                            horizontalGesture = true
-                            // 横向分页时锁定外层纵向滚动，避免整个首页被手势带动。
-                            parent?.requestDisallowInterceptTouchEvent(true)
-                            return true
-                        }
-                        if (horizontalGesture) return true
-                    }
-                    MotionEvent.ACTION_UP -> {
-                        if (horizontalGesture) {
-                            val dx = event.x - touchDownX
-                            horizontalGesture = false
-                            parent?.requestDisallowInterceptTouchEvent(false)
-                            switchLocalMusicDirectory(if (dx < 0) 1 else -1)
-                            return true
-                        }
-                    }
-                    MotionEvent.ACTION_CANCEL -> {
-                        horizontalGesture = false
-                        parent?.requestDisallowInterceptTouchEvent(false)
-                    }
-                }
-                return super.dispatchTouchEvent(event)
-            }
-        }.apply {
-            isFillViewport = true
-            setBackgroundColor(UiKit.BG)
-            clipToPadding = false
-        }
-        val root = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(
-                UiKit.dp(this@MainActivity, 18),
-                UiKit.dp(this@MainActivity, 18),
-                UiKit.dp(this@MainActivity, 18),
-                UiKit.dp(this@MainActivity, 32)
-            )
-        }
-        scroll.addView(root)
+        val (scroll, root) = pageRoot()
 
         val header = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -748,55 +690,11 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun selectLocalMusicDirectory(
-        directory: String?,
-        animationDirection: Int = 0
-    ) {
-        if (directory == localMusicSelectedDirectory || localMusicDirectoryAnimating) return
-        val host = localMusicHost
+    private fun selectLocalMusicDirectory(directory: String?) {
+        if (directory == localMusicSelectedDirectory) return
         localMusicSelectedDirectory = directory
         renderLocalMusicDirectoryTabs()
-
-        if (host == null || animationDirection == 0) {
-            renderSelectedLocalMusicDirectory()
-            return
-        }
-
-        localMusicDirectoryAnimating = true
-        host.animate().cancel()
-        host.animate()
-            .alpha(0f)
-            .translationX(-animationDirection * UiKit.dp(this, 28).toFloat())
-            .setDuration(130L)
-            .withEndAction {
-                renderSelectedLocalMusicDirectory()
-                host.alpha = 0f
-                host.translationX = animationDirection * UiKit.dp(this, 28).toFloat()
-                host.animate()
-                    .alpha(1f)
-                    .translationX(0f)
-                    .setDuration(220L)
-                    .setInterpolator(DecelerateInterpolator())
-                    .withEndAction {
-                        localMusicDirectoryAnimating = false
-                    }
-                    .start()
-            }
-            .start()
-    }
-
-    private fun switchLocalMusicDirectory(direction: Int): Boolean {
-        if (localMusicTracks.isEmpty() || localMusicDirectoryOrder.isEmpty()) return false
-        val pages = listOf<String?>(null) + localMusicDirectoryOrder
-        val current = pages.indexOf(localMusicSelectedDirectory).coerceAtLeast(0)
-        val target = (current + direction).coerceIn(0, pages.lastIndex)
-        if (target == current) return false
-        selectLocalMusicDirectory(pages[target], animationDirection = direction)
-        localMusicDirectoryTabScroll?.smoothScrollTo(
-            UiKit.dp(this, (target * 88).coerceAtLeast(0)),
-            0
-        )
-        return true
+        renderSelectedLocalMusicDirectory()
     }
 
     private fun renderSelectedLocalMusicDirectory() {
@@ -816,9 +714,9 @@ class MainActivity : Activity() {
             localMusicTracks.isEmpty() ->
                 "未发现本地音乐 · 点击刷新重新扫描"
             directory == null ->
-                "全部目录 · 共 ${localMusicTracks.size} 首 · 左右滑动切换目录"
+                "全部目录 · 共 ${localMusicTracks.size} 首 · 左右滑动查看目录标签，点击切换"
             else ->
-                "目录：$directory · ${localMusicVisibleTracks.size} 首 · 左右滑动切换"
+                "目录：$directory · ${localMusicVisibleTracks.size} 首 · 左右滑动查看目录标签，点击切换"
         }
         appendLocalMusicPage()
     }
