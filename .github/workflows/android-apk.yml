@@ -203,3 +203,34 @@ jobs:
           path: dist/*
           if-no-files-found: error
           retention-days: 90
+
+
+  hook-prerelease:
+    name: Publish Hook Prerelease
+    needs: build-debug
+    if: github.event_name == 'push' && github.ref == 'refs/heads/test_hook'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout version metadata
+        uses: actions/checkout@v4
+
+      - name: Download Debug APK
+        uses: actions/download-artifact@v4
+        with:
+          pattern: MusicConverter-v*-debug-${{ github.sha }}
+          path: dist
+          merge-multiple: true
+
+      - name: Publish isolated Hook prerelease
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION=$(sed -n 's/^[[:space:]]*versionName[[:space:]]*"\([^"]*\)".*/\1/p' app/build.gradle | head -n 1)
+          test -n "$VERSION" || { echo "Unable to read versionName"; exit 1; }
+          TAG="hook-v${VERSION}-build-${GITHUB_RUN_NUMBER}"
+          gh release create "$TAG" dist/* \
+            --target "$GITHUB_SHA" \
+            --title "MusicConverter Hook v${VERSION} (Build ${GITHUB_RUN_NUMBER})" \
+            --notes "QQ音乐下载免加密 Hook 测试版，来源分支：test_hook。" \
+            --prerelease
