@@ -28,7 +28,7 @@
         <meta-data android:name="xposedmodule" android:value="true" />
         <meta-data android:name="xposedminversion" android:value="82" />
         <meta-data android:name="xposeddescription"
-            android:value="QQ音乐 20.7.0.8 新下载歌曲免加密" />
+            android:value="QQ音乐新下载歌曲免加密（基于 20.7.0.8 适配）" />
         <meta-data android:name="xposedscope" android:resource="@array/qq_music_hook_scope" />
         <service
             android:name=".service.BatchConversionService"

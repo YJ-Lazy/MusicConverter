@@ -21,7 +21,7 @@ import de.robv.android.xposed.callbacks.XC_LoadPackage;
 /** Fixed-version adapter, independently implemented from the inspected download flow. */
 public final class QQMusicDownloadHook implements IXposedHookLoadPackage {
     private static final String TARGET_PACKAGE = "com.tencent.qqmusic";
-    private static final String TARGET_VERSION = "20.7.0.8";
+    private static final String REFERENCE_VERSION = "20.7.0.8";
     private static final String TASK_CLASS =
             "com.tencent.qqmusic.business.musicdownload.DownloadSongTask";
     private static final String TAG = "[MusicConverter-QQDownload] ";
@@ -57,10 +57,10 @@ public final class QQMusicDownloadHook implements IXposedHookLoadPackage {
     private static void install(Context context, final String processName) {
         try {
             PackageInfo info = context.getPackageManager().getPackageInfo(TARGET_PACKAGE, 0);
-            if (!TARGET_VERSION.equals(info.versionName)) {
-                log("SKIP unsupported version=" + info.versionName
-                        + "; expected=" + TARGET_VERSION);
-                return;
+            String installedVersion = info.versionName;
+            if (!REFERENCE_VERSION.equals(installedVersion)) {
+                log("WARN unverified version=" + installedVersion
+                        + "; reference=" + REFERENCE_VERSION + "; trying hook");
             }
             ClassLoader loader = context.getClassLoader();
             synchronized (INSTALLED) {
@@ -86,7 +86,7 @@ public final class QQMusicDownloadHook implements IXposedHookLoadPackage {
                     }
                 });
                 INSTALLED.add(loader);
-                log("INSTALLED " + TARGET_VERSION + " DownloadSongTask.n()Z process="
+                log("INSTALLED version=" + installedVersion + " DownloadSongTask.n()Z process="
                         + processName);
             }
         } catch (Throwable error) {
