@@ -1,16 +1,10 @@
 {
-  "versionCode": 36,
-  "versionName": "2.4",
-  "title": "MusicConverter 2.4",
+  "versionName": "2.4 Hook",
+  "title": "MusicConverter Hook 更新",
   "changelog": [
-    "QMC 兼容性增强：支持 .mgg0.flac、.mflac.flac、.qmc0.mp3 等混合/复合后缀，优化 QMC1/QMC2 格式识别与路由，并补充 .mflach、.qmflac 等格式识别",
-    "开源组件声明补充：新增 QMCDecode、Kugo-Music-Converter 相关开源来源与许可说明"
+    "QQ 音乐新下载歌曲免加密 Hook",
+    "基于 QQ 音乐 20.7.0.8 验证，其他版本会尝试适配",
+    "Hook 版使用独立更新检测通道"
   ],
-  "quarkUrl": "https://pan.quark.cn/s/bc7cbd178f5a",
-  "force": true,
-  "minSupportedVersionCode": 36,
-  "lanzouUrl": "https://ssssvip.lanzoue.com/b0xxjc13c",
-  "lanzouPassword": "6666",
-  "allowedStayVersionCodes": [],
-  "blockedVersionCodes": []
+  "githubUrl": "https://github.com/YJ-Lazy/MusicConverter/releases"
 }

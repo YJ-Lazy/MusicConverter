@@ -1359,7 +1359,7 @@ private fun buildEditorHubPage(): ScrollView {
         updateCard.addView(
             UiKit.text(
                 this,
-                "GitHub 优先 · 腾讯文档备用\nAPK 下载：夸克 / 蓝奏云",
+                "Hook 独立更新通道 · GitHub 优先 · 腾讯文档备用\nAPK 下载：GitHub / 夸克 / 蓝奏云",
                 11.5f,
                 UiKit.TEXT_3
             ).apply {
@@ -1578,6 +1578,7 @@ private fun buildEditorHubPage(): ScrollView {
             return
         }
 
+        val hasGithub = info.githubUrl.isNotBlank()
         val hasQuark = info.quarkUrl.startsWith("https://pan.quark.cn/")
         val hasLanzou = info.lanzouUrl.isNotBlank()
 
@@ -1586,6 +1587,7 @@ private fun buildEditorHubPage(): ScrollView {
             append("最新版本：v${info.versionName}\n")
             append("下载来源：")
             val sources = mutableListOf<String>()
+            if (hasGithub) sources += "GitHub"
             if (hasQuark) sources += "夸克网盘"
             if (hasLanzou) sources += "蓝奏云"
             append(sources.joinToString(" / "))
@@ -1672,6 +1674,10 @@ private fun buildEditorHubPage(): ScrollView {
         val labels = mutableListOf<String>()
         val actions = mutableListOf<() -> Unit>()
 
+        if (info.githubUrl.isNotBlank()) {
+            labels += "GitHub Releases"
+            actions += { openGithubUpdate(info.githubUrl) }
+        }
         if (info.quarkUrl.startsWith("https://pan.quark.cn/")) {
             labels += "夸克网盘"
             actions += { openQuarkUpdate(info.quarkUrl) }
@@ -1700,6 +1706,19 @@ private fun buildEditorHubPage(): ScrollView {
             .setItems(labels.toTypedArray()) { _, which -> actions[which].invoke() }
             .setNegativeButton("取消", null)
             .show()
+    }
+
+    private fun openGithubUpdate(url: String) {
+        val uri = runCatching { Uri.parse(url) }.getOrNull()
+        val valid = url.startsWith("https://") &&
+            uri?.host.equals("github.com", ignoreCase = true) &&
+            uri?.path.orEmpty().startsWith("/YJ-Lazy/MusicConverter/releases")
+        if (!valid || uri == null) {
+            toast("GitHub 更新链接无效")
+            return
+        }
+        runCatching { startActivity(Intent(Intent.ACTION_VIEW, uri)) }
+            .onFailure { toast("无法打开 GitHub 链接，请确认已安装浏览器") }
     }
 
     private fun openQuarkUpdate(url: String) {

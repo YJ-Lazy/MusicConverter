@@ -11,6 +11,7 @@ data class RemoteUpdateInfo(
     val versionName: String,
     val title: String,
     val changelog: String,
+    val githubUrl: String,
     val quarkUrl: String,
     val lanzouUrl: String,
     val lanzouPassword: String,
@@ -29,15 +30,15 @@ sealed class UpdateCheckResult {
 object RemoteUpdateManager {
     // GitHub 为主版本清单；腾讯文档作为国内备用版本检查源。
     const val GITHUB_MANIFEST_URL =
-        "https://raw.githubusercontent.com/YJ-Lazy/MusicConverter/main/update/update.json"
+        "https://raw.githubusercontent.com/YJ-Lazy/MusicConverter/test_hook/update/update.json"
 
     const val TENCENT_DOC_URL =
-        "https://docs.qq.com/doc/DQnB4ZVJST2xRR2h5"
+        "https://docs.qq.com/doc/DQkVQR0dVeXFnVUVj"
 
     // 保留旧常量名，避免其他调用点受影响。
     const val MANIFEST_URL = GITHUB_MANIFEST_URL
 
-    private const val PREFS = "remote_update_preferences"
+    private const val PREFS = "remote_update_preferences_hook"
     private const val KEY_LAST_AUTO_CHECK = "last_auto_check"
     private const val KEY_IGNORED_VERSION_CODE = "ignored_version_code"
 
@@ -47,6 +48,7 @@ object RemoteUpdateManager {
     private const val KEY_FORCE_VERSION_NAME = "force_version_name"
     private const val KEY_FORCE_TITLE = "force_title"
     private const val KEY_FORCE_CHANGELOG = "force_changelog"
+    private const val KEY_FORCE_GITHUB_URL = "force_github_url"
     private const val KEY_FORCE_QUARK_URL = "force_quark_url"
     private const val KEY_FORCE_LANZOU_URL = "force_lanzou_url"
     private const val KEY_FORCE_LANZOU_PASSWORD = "force_lanzou_password"
@@ -70,6 +72,7 @@ object RemoteUpdateManager {
             .putString(KEY_FORCE_VERSION_NAME, info.versionName)
             .putString(KEY_FORCE_TITLE, info.title)
             .putString(KEY_FORCE_CHANGELOG, info.changelog)
+            .putString(KEY_FORCE_GITHUB_URL, info.githubUrl)
             .putString(KEY_FORCE_QUARK_URL, info.quarkUrl)
             .putString(KEY_FORCE_LANZOU_URL, info.lanzouUrl)
             .putString(KEY_FORCE_LANZOU_PASSWORD, info.lanzouPassword)
@@ -92,6 +95,7 @@ object RemoteUpdateManager {
             versionName = prefs.getString(KEY_FORCE_VERSION_NAME, "必须更新") ?: "必须更新",
             title = prefs.getString(KEY_FORCE_TITLE, "必须更新 MusicConverter") ?: "必须更新 MusicConverter",
             changelog = prefs.getString(KEY_FORCE_CHANGELOG, "") ?: "",
+            githubUrl = prefs.getString(KEY_FORCE_GITHUB_URL, "") ?: "",
             quarkUrl = prefs.getString(KEY_FORCE_QUARK_URL, "") ?: "",
             lanzouUrl = prefs.getString(KEY_FORCE_LANZOU_URL, "") ?: "",
             lanzouPassword = prefs.getString(KEY_FORCE_LANZOU_PASSWORD, "") ?: "",
@@ -109,6 +113,7 @@ object RemoteUpdateManager {
             .remove(KEY_FORCE_VERSION_NAME)
             .remove(KEY_FORCE_TITLE)
             .remove(KEY_FORCE_CHANGELOG)
+            .remove(KEY_FORCE_GITHUB_URL)
             .remove(KEY_FORCE_QUARK_URL)
             .remove(KEY_FORCE_LANZOU_URL)
             .remove(KEY_FORCE_LANZOU_PASSWORD)
@@ -397,6 +402,7 @@ object RemoteUpdateManager {
             versionName = json.optString("versionName", "未知版本"),
             title = json.optString("title", "发现新版本"),
             changelog = readChangelog(json),
+            githubUrl = json.optString("githubUrl").trim(),
             quarkUrl = json.optString("quarkUrl").trim(),
             lanzouUrl = json.optString("lanzouUrl").trim(),
             lanzouPassword = json.optString("lanzouPassword").trim(),
@@ -426,10 +432,11 @@ object RemoteUpdateManager {
             return UpdateCheckResult.Latest(info)
         }
 
+        val hasGithub = isGithubReleaseUrl(info.githubUrl)
         val hasQuark = info.quarkUrl.startsWith("https://pan.quark.cn/")
         val hasLanzou = isLanzouUrl(info.lanzouUrl)
         return when {
-            !hasQuark && !hasLanzou ->
+            !hasGithub && !hasQuark && !hasLanzou ->
                 UpdateCheckResult.Error("远程更新清单没有可用的下载链接")
             info.lanzouUrl.isNotBlank() && !hasLanzou ->
                 UpdateCheckResult.Error("远程更新清单中的蓝奏云链接无效")
@@ -687,6 +694,7 @@ object RemoteUpdateManager {
             .put("versionCode", versionCode)
             .put("versionName", stringField("versionName") ?: "未知版本")
             .put("title", stringField("title") ?: "发现新版本")
+            .put("githubUrl", stringField("githubUrl") ?: "")
             .put("quarkUrl", stringField("quarkUrl") ?: "")
             .put("lanzouUrl", stringField("lanzouUrl") ?: "")
             .put("lanzouPassword", stringField("lanzouPassword") ?: "")
@@ -754,6 +762,16 @@ object RemoteUpdateManager {
             }
         }
         return null
+    }
+
+    private fun isGithubReleaseUrl(value: String): Boolean {
+        if (value.isBlank()) return false
+        return runCatching {
+            val parsed = URL(value)
+            parsed.protocol == "https" &&
+                parsed.host.equals("github.com", ignoreCase = true) &&
+                parsed.path.startsWith("/YJ-Lazy/MusicConverter/releases")
+        }.getOrDefault(false)
     }
 
     private fun isLanzouUrl(value: String): Boolean {
