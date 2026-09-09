@@ -359,22 +359,41 @@ class MainActivity : Activity() {
     private fun buildHomePage(): ScrollView {
         var touchDownX = 0f
         var touchDownY = 0f
+        var horizontalGesture = false
         val scroll = object : ScrollView(this) {
             override fun dispatchTouchEvent(event: MotionEvent): Boolean {
                 when (event.actionMasked) {
                     MotionEvent.ACTION_DOWN -> {
                         touchDownX = event.x
                         touchDownY = event.y
+                        horizontalGesture = false
                     }
-                    MotionEvent.ACTION_UP -> {
+                    MotionEvent.ACTION_MOVE -> {
                         val dx = event.x - touchDownX
                         val dy = event.y - touchDownY
-                        if (kotlin.math.abs(dx) >= UiKit.dp(this@MainActivity, 72) &&
-                            kotlin.math.abs(dx) > kotlin.math.abs(dy) * 1.25f &&
-                            switchLocalMusicDirectory(if (dx < 0) 1 else -1)
+                        if (!horizontalGesture &&
+                            kotlin.math.abs(dx) >= UiKit.dp(this@MainActivity, 36) &&
+                            kotlin.math.abs(dx) > kotlin.math.abs(dy) * 1.25f
                         ) {
+                            horizontalGesture = true
+                            // 横向分页时锁定外层纵向滚动，避免整个首页被手势带动。
+                            parent?.requestDisallowInterceptTouchEvent(true)
                             return true
                         }
+                        if (horizontalGesture) return true
+                    }
+                    MotionEvent.ACTION_UP -> {
+                        if (horizontalGesture) {
+                            val dx = event.x - touchDownX
+                            horizontalGesture = false
+                            parent?.requestDisallowInterceptTouchEvent(false)
+                            switchLocalMusicDirectory(if (dx < 0) 1 else -1)
+                            return true
+                        }
+                    }
+                    MotionEvent.ACTION_CANCEL -> {
+                        horizontalGesture = false
+                        parent?.requestDisallowInterceptTouchEvent(false)
                     }
                 }
                 return super.dispatchTouchEvent(event)
