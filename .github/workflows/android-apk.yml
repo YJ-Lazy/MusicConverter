@@ -82,13 +82,13 @@ jobs:
           test -n "$VERSION" || { echo "Unable to read versionName"; exit 1; }
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           mkdir -p dist
-          cp app/build/outputs/apk/debug/app-debug.apk "dist/MusicConverter-v${VERSION}-debug.apk"
-          sha256sum "dist/MusicConverter-v${VERSION}-debug.apk" > "dist/MusicConverter-v${VERSION}-debug.apk.sha256"
+          cp app/build/outputs/apk/debug/app-debug.apk "dist/Hook-MusicConverter-v${VERSION}-debug.apk"
+          sha256sum "dist/Hook-MusicConverter-v${VERSION}-debug.apk" > "dist/Hook-MusicConverter-v${VERSION}-debug.apk.sha256"
 
       - name: Upload Debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: MusicConverter-v${{ steps.debug_version.outputs.version }}-debug-${{ github.sha }}
+          name: Hook-MusicConverter-v${{ steps.debug_version.outputs.version }}-debug-${{ github.sha }}
           path: dist/*
           if-no-files-found: error
           retention-days: 30
@@ -217,7 +217,7 @@ jobs:
       - name: Download Debug APK
         uses: actions/download-artifact@v4
         with:
-          pattern: MusicConverter-v*-debug-${{ github.sha }}
+          pattern: Hook-MusicConverter-v*-debug-${{ github.sha }}
           path: dist
           merge-multiple: true
 
