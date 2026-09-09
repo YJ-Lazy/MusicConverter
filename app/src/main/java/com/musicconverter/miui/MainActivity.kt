@@ -440,9 +440,9 @@ class MainActivity : Activity() {
             overScrollMode = View.OVER_SCROLL_NEVER
             addView(
                 localMusicDirectoryTabs,
-                HorizontalScrollView.LayoutParams(
-                    HorizontalScrollView.LayoutParams.WRAP_CONTENT,
-                    HorizontalScrollView.LayoutParams.WRAP_CONTENT
+                FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.WRAP_CONTENT,
+                    FrameLayout.LayoutParams.WRAP_CONTENT
                 )
             )
         }
