@@ -20,6 +20,7 @@ import android.provider.MediaStore
 import android.content.ContentUris
 import android.view.Gravity
 import android.view.MotionEvent
+import android.view.animation.DecelerateInterpolator
 import android.view.View
 import android.widget.CheckBox
 import android.widget.FrameLayout
@@ -102,6 +103,7 @@ class MainActivity : Activity() {
     private var localMusicSelectedDirectory: String? = null
     private var localMusicDirectoryTabs: LinearLayout? = null
     private var localMusicDirectoryTabScroll: HorizontalScrollView? = null
+    private var localMusicDirectoryAnimating = false
     private var localMusicRenderedCount = 0
     private var localMusicPageLoading = false
     private val localMusicPageSize = 40
@@ -656,7 +658,16 @@ class MainActivity : Activity() {
         localMusicDirectoryOrder = localMusicTracks
             .map { localMusicDirectories[it.id] ?: ROOT_MUSIC_DIRECTORY }
             .distinct()
-            .sortedWith(String.CASE_INSENSITIVE_ORDER)
+            .sortedWith(Comparator { left, right ->
+                val leftCount = localMusicTracks.count {
+                    (localMusicDirectories[it.id] ?: ROOT_MUSIC_DIRECTORY) == left
+                }
+                val rightCount = localMusicTracks.count {
+                    (localMusicDirectories[it.id] ?: ROOT_MUSIC_DIRECTORY) == right
+                }
+                val countOrder = rightCount.compareTo(leftCount)
+                if (countOrder != 0) countOrder else left.compareTo(right, ignoreCase = true)
+            })
 
         if (localMusicSelectedDirectory !in localMusicDirectoryOrder) {
             localMusicSelectedDirectory = null
@@ -718,11 +729,41 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun selectLocalMusicDirectory(directory: String?) {
-        if (directory == localMusicSelectedDirectory) return
+    private fun selectLocalMusicDirectory(
+        directory: String?,
+        animationDirection: Int = 0
+    ) {
+        if (directory == localMusicSelectedDirectory || localMusicDirectoryAnimating) return
+        val host = localMusicHost
         localMusicSelectedDirectory = directory
         renderLocalMusicDirectoryTabs()
-        renderSelectedLocalMusicDirectory()
+
+        if (host == null || animationDirection == 0) {
+            renderSelectedLocalMusicDirectory()
+            return
+        }
+
+        localMusicDirectoryAnimating = true
+        host.animate().cancel()
+        host.animate()
+            .alpha(0f)
+            .translationX(-animationDirection * UiKit.dp(this, 28).toFloat())
+            .setDuration(130L)
+            .withEndAction {
+                renderSelectedLocalMusicDirectory()
+                host.alpha = 0f
+                host.translationX = animationDirection * UiKit.dp(this, 28).toFloat()
+                host.animate()
+                    .alpha(1f)
+                    .translationX(0f)
+                    .setDuration(220L)
+                    .setInterpolator(DecelerateInterpolator())
+                    .withEndAction {
+                        localMusicDirectoryAnimating = false
+                    }
+                    .start()
+            }
+            .start()
     }
 
     private fun switchLocalMusicDirectory(direction: Int): Boolean {
@@ -731,7 +772,7 @@ class MainActivity : Activity() {
         val current = pages.indexOf(localMusicSelectedDirectory).coerceAtLeast(0)
         val target = (current + direction).coerceIn(0, pages.lastIndex)
         if (target == current) return false
-        selectLocalMusicDirectory(pages[target])
+        selectLocalMusicDirectory(pages[target], animationDirection = direction)
         localMusicDirectoryTabScroll?.smoothScrollTo(
             UiKit.dp(this, (target * 88).coerceAtLeast(0)),
             0
