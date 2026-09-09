@@ -18,7 +18,7 @@ import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
 import de.robv.android.xposed.callbacks.XC_LoadPackage;
 
-/** Fixed-version adapter, independently implemented from the inspected download flow. */
+/** Hook based on the verified 20.7.0.8 download flow; other versions are attempted best-effort. */
 public final class QQMusicDownloadHook implements IXposedHookLoadPackage {
     private static final String TARGET_PACKAGE = "com.tencent.qqmusic";
     private static final String REFERENCE_VERSION = "20.7.0.8";
