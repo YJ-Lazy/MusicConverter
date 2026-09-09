@@ -1,17 +1,19 @@
 {
-  "versionCode": 36,
-  "versionName": "2.4",
-  "title": "MusicConverter 2.4",
+  "versionCode": 37,
+  "versionName": "2.5",
+  "title": "MusicConverter 2.5",
   "changelog": [
-    "QMC 兼容性增强：支持 .mgg0.flac、.mflac.flac、.qmc0.mp3 等混合/复合后缀，优化 QMC1/QMC2 格式识别与路由，并补充 .mflach、.qmflac 等格式识别",
-    "开源组件声明补充：新增 QMCDecode、Kugo-Music-Converter 相关开源来源与许可说明"
+    "2.5 更新：本地音乐扫描结果按来源目录分组，新增“全部”和各目录分页，目录标签可横向滑动浏览，点击标签切换目录",
+    "2.5 更新：优化目录标签与歌曲列表切换体验，横向浏览目录时不会带动首页整体滚动",
+    "2.4 更新：QMC 兼容性增强，支持 .mgg0.flac、.mflac.flac、.qmc0.mp3 等混合/复合后缀，优化 QMC1/QMC2 格式识别与路由，并补充 .mflach、.qmflac 等格式识别",
+    "2.4 更新：补充 QMCDecode、Kugo-Music-Converter 相关开源来源与许可声明"
   ],
   "githubUrl": "https://github.com/YJ-Lazy/MusicConverter/releases/latest",
   "quarkUrl": "https://pan.quark.cn/s/bc7cbd178f5a",
   "lanzouUrl": "https://ssssvip.lanzoue.com/b0xxjc13c",
   "lanzouPassword": "6666",
   "force": true,
-  "minSupportedVersionCode": 36,
+  "minSupportedVersionCode": 37,
   "allowedStayVersionCodes": [],
   "blockedVersionCodes": []
 }
