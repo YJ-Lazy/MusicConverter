@@ -19,9 +19,11 @@ import android.provider.Settings
 import android.provider.MediaStore
 import android.content.ContentUris
 import android.view.Gravity
+import android.view.MotionEvent
 import android.view.View
 import android.widget.CheckBox
 import android.widget.FrameLayout
+import android.widget.HorizontalScrollView
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.RadioButton
@@ -94,6 +96,12 @@ class MainActivity : Activity() {
     private var localMusicHost: LinearLayout? = null
     private var localMusicStatus: TextView? = null
     private var localMusicTracks: List<Track> = emptyList()
+    private var localMusicDirectories: Map<String, String> = emptyMap()
+    private var localMusicVisibleTracks: List<Track> = emptyList()
+    private var localMusicDirectoryOrder: List<String> = emptyList()
+    private var localMusicSelectedDirectory: String? = null
+    private var localMusicDirectoryTabs: LinearLayout? = null
+    private var localMusicDirectoryTabScroll: HorizontalScrollView? = null
     private var localMusicRenderedCount = 0
     private var localMusicPageLoading = false
     private val localMusicPageSize = 40
@@ -186,6 +194,7 @@ class MainActivity : Activity() {
     }
 
     companion object {
+        private const val ROOT_MUSIC_DIRECTORY = "内部存储根目录"
         private const val DISCLAIMER_TEXT = """请在使用 MusicConverter 前仔细阅读本声明。点击“我已阅读并同意”表示你已阅读并理解以下内容。\n\n1. 软件性质\nMusicConverter 是用于本地音频处理、格式转换、编辑与播放的工具。软件本身不提供、存储或运营任何商业音乐曲库，也不授予任何音乐作品、录音制品、专辑封面或其他第三方内容的版权许可。\n\n2. 合法使用与版权\n你应仅处理自己依法拥有、已获得授权，或法律允许使用的音频及其他内容。请勿利用本软件实施侵权、规避技术保护措施、传播违法内容或其他违反适用法律法规及第三方服务条款的行为。因用户自行导入、转换、编辑、保存、分享或使用内容产生的法律责任，由实际行为人依法承担。\n\n3. 在线音乐功能（不维护）\n在线音乐相关功能仅作为实验性、辅助性功能提供，依赖第三方公开网络接口或网络资源，不属于本软件自建音乐服务。该功能不维护，不保证可用性、完整性、准确性、音质、持续性或长期兼容性；第三方接口变更、失效、限流、地区限制或内容下架均可能导致搜索或播放失败。请遵守相关第三方平台的服务条款和版权规则。\n\n4. 联网封面与第三方信息\n本地音乐缺少封面时，软件可能根据歌曲名称、歌手等信息联网查询第三方公开数据以补充封面。搜索结果可能存在匹配错误、缺失或第三方权利限制。用户应自行判断其使用是否合法、适当。\n\n5. 本地文件操作风险\n音频转换、剪辑、批量处理、替换源文件、删除源文件及清理缓存等操作可能改变或删除本地数据。请在重要操作前自行备份。软件会尽合理努力降低异常风险，但本声明不排除或限制依法不能排除或限制的责任。\n\n6. 第三方组件与服务\n软件可能调用第三方开源组件、系统能力、网站、接口或应用。相关第三方服务由其各自运营者负责，其可用性、内容及规则不受本软件控制。第三方组件的许可与声明以项目内 THIRD_PARTY_NOTICES、相应许可证及上游项目说明为准。\n\n7. 无担保与责任边界\n本软件按现状提供。除法律另有强制规定外，不对特定用途适用性、第三方服务持续可用性或用户设备、文件、网络环境造成的间接损失作额外保证。任何免责声明均不应被解释为排除或限制法律规定不得排除或限制的消费者权利、人身损害责任或其他法定责任。\n\n8. 协议更新\n如本声明因功能或法律要求发生实质变化，软件可提高协议版本并再次要求确认。继续使用前请重新阅读。\n\n如你不同意以上内容，请选择“不同意并退出”并停止使用本软件。"""
     }
 
@@ -346,7 +355,43 @@ class MainActivity : Activity() {
     }
 
     private fun buildHomePage(): ScrollView {
-        val (scroll, root) = pageRoot()
+        var touchDownX = 0f
+        var touchDownY = 0f
+        val scroll = object : ScrollView(this) {
+            override fun dispatchTouchEvent(event: MotionEvent): Boolean {
+                when (event.actionMasked) {
+                    MotionEvent.ACTION_DOWN -> {
+                        touchDownX = event.x
+                        touchDownY = event.y
+                    }
+                    MotionEvent.ACTION_UP -> {
+                        val dx = event.x - touchDownX
+                        val dy = event.y - touchDownY
+                        if (kotlin.math.abs(dx) >= UiKit.dp(this@MainActivity, 72) &&
+                            kotlin.math.abs(dx) > kotlin.math.abs(dy) * 1.25f &&
+                            switchLocalMusicDirectory(if (dx < 0) 1 else -1)
+                        ) {
+                            return true
+                        }
+                    }
+                }
+                return super.dispatchTouchEvent(event)
+            }
+        }.apply {
+            isFillViewport = true
+            setBackgroundColor(UiKit.BG)
+            clipToPadding = false
+        }
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(
+                UiKit.dp(this@MainActivity, 18),
+                UiKit.dp(this@MainActivity, 18),
+                UiKit.dp(this@MainActivity, 18),
+                UiKit.dp(this@MainActivity, 32)
+            )
+        }
+        scroll.addView(root)
 
         val header = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -384,6 +429,30 @@ class MainActivity : Activity() {
             UiKit.TEXT_3
         )
         root.addView(localMusicStatus)
+
+        root.addView(UiKit.spacer(this, 10))
+        localMusicDirectoryTabs = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        localMusicDirectoryTabScroll = HorizontalScrollView(this).apply {
+            isHorizontalScrollBarEnabled = false
+            overScrollMode = View.OVER_SCROLL_NEVER
+            addView(
+                localMusicDirectoryTabs,
+                HorizontalScrollView.LayoutParams(
+                    HorizontalScrollView.LayoutParams.WRAP_CONTENT,
+                    HorizontalScrollView.LayoutParams.WRAP_CONTENT
+                )
+            )
+        }
+        root.addView(
+            localMusicDirectoryTabScroll,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                UiKit.dp(this, 48)
+            )
+        )
 
         root.addView(UiKit.spacer(this, 10))
         localMusicHost = LinearLayout(this).apply {
@@ -444,11 +513,14 @@ class MainActivity : Activity() {
         Thread {
             val restored = runCatching {
                 val array = JSONArray(cache.readText())
-                ArrayList<Track>(array.length()).apply {
+                val restoredDirectories = LinkedHashMap<String, String>()
+                val tracks = ArrayList<Track>(array.length()).apply {
                     for (i in 0 until array.length()) {
                         val item = array.getJSONObject(i)
-                        add(
-                            Track(
+                        if (!item.has("directory")) {
+                            throw IllegalStateException("旧版缓存缺少目录信息")
+                        }
+                        val track = Track(
                                 id = item.optString("id"),
                                 title = item.optString("title", "未知歌曲"),
                                 artist = item.optString("artist", "未知歌手"),
@@ -458,9 +530,12 @@ class MainActivity : Activity() {
                                 streamUrl = item.optString("streamUrl"),
                                 source = "local"
                             )
-                        )
+                        add(track)
+                        restoredDirectories[track.id] =
+                            normalizeLocalMusicDirectory(item.optString("directory"))
                     }
                 }
+                tracks to restoredDirectories
             }.getOrNull()
 
             if (restored == null) {
@@ -468,7 +543,8 @@ class MainActivity : Activity() {
                 runOnUiThread { loadLocalMusic() }
                 return@Thread
             }
-            localMusicTracks = restored
+            localMusicTracks = restored.first
+            localMusicDirectories = restored.second
             runOnUiThread { renderLocalMusic() }
         }.start()
     }
@@ -486,6 +562,7 @@ class MainActivity : Activity() {
                             put("album", track.album)
                             put("artwork", track.artwork ?: "")
                             put("streamUrl", track.streamUrl)
+                            put("directory", localMusicDirectories[track.id] ?: ROOT_MUSIC_DIRECTORY)
                         }
                     )
                 }
@@ -502,12 +579,14 @@ class MainActivity : Activity() {
         localMusicStatus?.text = "正在读取本地音乐…"
         Thread {
             val songs = mutableListOf<Track>()
+            val directories = LinkedHashMap<String, String>()
             val uri = MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
             val projection = arrayOf(
                 MediaStore.Audio.Media._ID,
                 MediaStore.Audio.Media.TITLE,
                 MediaStore.Audio.Media.ARTIST,
-                MediaStore.Audio.Media.ALBUM
+                MediaStore.Audio.Media.ALBUM,
+                MediaStore.Audio.Media.RELATIVE_PATH
             )
             val selection = "${MediaStore.Audio.Media.IS_MUSIC} != 0"
             runCatching {
@@ -522,6 +601,7 @@ class MainActivity : Activity() {
                     val titleCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
                     val artistCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
                     val albumCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM)
+                    val directoryCol = cursor.getColumnIndex(MediaStore.Audio.Media.RELATIVE_PATH)
                     while (cursor.moveToNext()) {
                         val id = cursor.getLong(idCol)
                         val contentUri = ContentUris.withAppendedId(uri, id)
@@ -530,7 +610,7 @@ class MainActivity : Activity() {
                             it.isNotBlank() && it != "<unknown>"
                         } ?: "未知歌手"
                         val album = cursor.getString(albumCol).orEmpty()
-                        songs += Track(
+                        val track = Track(
                             id = "local:$id",
                             title = title,
                             artist = artist,
@@ -538,6 +618,10 @@ class MainActivity : Activity() {
                             artwork = "media-thumb:${contentUri}",
                             streamUrl = contentUri.toString(),
                             source = "local"
+                        )
+                        songs += track
+                        directories[track.id] = normalizeLocalMusicDirectory(
+                            if (directoryCol >= 0) cursor.getString(directoryCol) else null
                         )
                     }
                 }
@@ -548,21 +632,133 @@ class MainActivity : Activity() {
                 return@Thread
             }
             localMusicTracks = songs
+            localMusicDirectories = directories
             saveLocalMusicCache(songs)
             runOnUiThread { renderLocalMusic() }
         }.start()
     }
 
+    private fun normalizeLocalMusicDirectory(value: String?): String {
+        return value
+            ?.replace('\\', '/')
+            ?.trim()
+            ?.trim('/')
+            ?.takeIf { it.isNotBlank() }
+            ?: ROOT_MUSIC_DIRECTORY
+    }
+
+    private fun directoryDisplayName(directory: String): String {
+        if (directory == ROOT_MUSIC_DIRECTORY) return "根目录"
+        return directory.substringAfterLast('/').ifBlank { directory }
+    }
+
     private fun renderLocalMusic() {
+        localMusicDirectoryOrder = localMusicTracks
+            .map { localMusicDirectories[it.id] ?: ROOT_MUSIC_DIRECTORY }
+            .distinct()
+            .sortedWith(String.CASE_INSENSITIVE_ORDER)
+
+        if (localMusicSelectedDirectory !in localMusicDirectoryOrder) {
+            localMusicSelectedDirectory = null
+        }
+        renderLocalMusicDirectoryTabs()
+        renderSelectedLocalMusicDirectory()
+    }
+
+    private fun renderLocalMusicDirectoryTabs() {
+        val tabs = localMusicDirectoryTabs ?: return
+        tabs.removeAllViews()
+
+        val pages = listOf<String?>(null) + localMusicDirectoryOrder
+        pages.forEachIndexed { index, directory ->
+            val selected = directory == localMusicSelectedDirectory
+            val count = if (directory == null) {
+                localMusicTracks.size
+            } else {
+                localMusicTracks.count {
+                    (localMusicDirectories[it.id] ?: ROOT_MUSIC_DIRECTORY) == directory
+                }
+            }
+            val label = if (directory == null) "全部" else directoryDisplayName(directory)
+            val tab = UiKit.text(
+                this,
+                "$label  $count",
+                12f,
+                if (selected) UiKit.onPrimaryContainer(this) else UiKit.TEXT_2,
+                selected
+            ).apply {
+                gravity = Gravity.CENTER
+                setPadding(
+                    UiKit.dp(this@MainActivity, 14),
+                    0,
+                    UiKit.dp(this@MainActivity, 14),
+                    0
+                )
+                background = UiKit.rounded(
+                    if (selected) UiKit.primaryContainer(this@MainActivity) else UiKit.SURFACE,
+                    16,
+                    this@MainActivity
+                )
+                contentDescription = if (directory == null) {
+                    "全部本地音乐，共 $count 首"
+                } else {
+                    "目录 $directory，共 $count 首"
+                }
+                setOnClickListener { selectLocalMusicDirectory(directory) }
+            }
+            tabs.addView(
+                tab,
+                LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    UiKit.dp(this, 38)
+                ).apply {
+                    if (index > 0) leftMargin = UiKit.dp(this@MainActivity, 8)
+                }
+            )
+        }
+    }
+
+    private fun selectLocalMusicDirectory(directory: String?) {
+        if (directory == localMusicSelectedDirectory) return
+        localMusicSelectedDirectory = directory
+        renderLocalMusicDirectoryTabs()
+        renderSelectedLocalMusicDirectory()
+    }
+
+    private fun switchLocalMusicDirectory(direction: Int): Boolean {
+        if (localMusicTracks.isEmpty() || localMusicDirectoryOrder.isEmpty()) return false
+        val pages = listOf<String?>(null) + localMusicDirectoryOrder
+        val current = pages.indexOf(localMusicSelectedDirectory).coerceAtLeast(0)
+        val target = (current + direction).coerceIn(0, pages.lastIndex)
+        if (target == current) return false
+        selectLocalMusicDirectory(pages[target])
+        localMusicDirectoryTabScroll?.smoothScrollTo(
+            UiKit.dp(this, (target * 88).coerceAtLeast(0)),
+            0
+        )
+        return true
+    }
+
+    private fun renderSelectedLocalMusicDirectory() {
         val host = localMusicHost ?: return
         host.removeAllViews()
         localMusicRenderedCount = 0
         localMusicPageLoading = false
-        val songs = localMusicTracks
-        localMusicStatus?.text = if (songs.isEmpty()) {
-            "未发现本地音乐 · 点击刷新重新扫描"
-        } else {
-            "共 ${songs.size} 首 · 已记住列表 · 下拉浏览，刷新时才重新扫描"
+
+        localMusicVisibleTracks = localMusicSelectedDirectory?.let { selectedDirectory ->
+            localMusicTracks.filter {
+                (localMusicDirectories[it.id] ?: ROOT_MUSIC_DIRECTORY) == selectedDirectory
+            }
+        } ?: localMusicTracks
+
+        val directory = localMusicSelectedDirectory
+        localMusicStatus?.text = when {
+            localMusicTracks.isEmpty() ->
+                "未发现本地音乐 · 点击刷新重新扫描"
+            directory == null ->
+                "全部目录 · 共 ${localMusicTracks.size} 首 · 左右滑动切换目录"
+            else ->
+                "目录：$directory · ${localMusicVisibleTracks.size} 首 · 左右滑动切换"
         }
         appendLocalMusicPage()
     }
@@ -570,7 +766,7 @@ class MainActivity : Activity() {
     private fun appendLocalMusicPage() {
         if (localMusicPageLoading) return
         val host = localMusicHost ?: return
-        val songs = localMusicTracks
+        val songs = localMusicVisibleTracks
         if (localMusicRenderedCount >= songs.size) return
         localMusicPageLoading = true
 
