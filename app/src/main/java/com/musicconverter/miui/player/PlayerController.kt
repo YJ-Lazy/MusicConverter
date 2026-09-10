@@ -150,6 +150,27 @@ object PlayerController {
         if (playNow) play(target)
     }
 
+    fun addAll(tracks: List<Track>, playNow: Boolean = true): Int {
+        if (tracks.isEmpty()) return 0
+
+        val firstTrackId = tracks.first().id
+        val queuedIds = queue.mapTo(mutableSetOf()) { it.id }
+        var addedCount = 0
+        tracks.forEach { track ->
+            if (queuedIds.add(track.id)) {
+                queue += track
+                addedCount++
+            }
+        }
+
+        listeners.forEach { it.onQueue(queue.toList(), index) }
+        if (playNow) {
+            val target = queue.indexOfFirst { it.id == firstTrackId }
+            if (target >= 0) play(target)
+        }
+        return addedCount
+    }
+
     fun play(target: Int) {
         val track = queue.getOrNull(target) ?: return
         index = target
