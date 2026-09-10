@@ -754,7 +754,7 @@ class MainActivity : Activity() {
             if (addedCount > 0) {
                 "$scope ${tracks.size} 首已加入播放列表"
             } else {
-                "$scope歌曲已在播放列表中"
+                "${scope}歌曲已在播放列表中"
             }
         )
     }
