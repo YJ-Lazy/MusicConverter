@@ -2,6 +2,10 @@ name: Setup Telegram Webhook
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/setup-telegram-webhook.yml
 
 permissions:
   contents: read
