@@ -1,0 +1,13 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "musicconverter-tg-bot",
+  "main": "src/index.js",
+  "compatibility_date": "2026-09-10",
+  "observability": {
+    "enabled": true
+  },
+  "vars": {
+    "GITHUB_REPOSITORY": "YJ-Lazy/MusicConverter",
+    "TG_COMMUNITY_URL": "https://t.me/MusicConverter_YJ_Lazy"
+  }
+}

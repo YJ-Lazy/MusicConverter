@@ -172,7 +172,6 @@ Release 构建需要配置对应的签名信息。
 ## 项目定位
 
 MusicConverter 主要用于管理和处理用户自己拥有并有权处理的本地音频文件。应用不会绕过 Android 系统的存储沙箱限制。
-
 ## 社区交流
 
 QQ 交流群：**1054469058**
@@ -185,4 +184,4 @@ QQ 交流群：**1054469058**
 
 ## Telegram 机器人
 
-仓库内的 [`telegram-bot`](telegram-bot/) 目录提供版本下载、更新日志、格式说明、使用帮助和构建状态菜单。正式 Release 构建成功后，GitHub Actions 会通过仓库 Secrets 中的 `TG_BOT_TOKEN` 与 `TG_CHAT_ID` 自动向 Telegram 发送发布通知。
+仓库内的 [`telegram-worker`](telegram-worker/) 目录提供推荐的 Cloudflare Workers Webhook 部署版本；[`telegram-bot`](telegram-bot/) 保留 Python 长轮询版本。机器人支持版本下载、更新日志、格式说明、使用帮助和构建状态菜单。正式 Release 构建成功后，GitHub Actions 会通过仓库 Secrets 中的 `TG_BOT_TOKEN` 与 `TG_CHAT_ID` 自动向 Telegram 发送发布通知。
