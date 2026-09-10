@@ -385,13 +385,33 @@ class MainActivity : Activity() {
         root.addView(actionCard)
 
         root.addView(UiKit.spacer(this, 18))
+        val directoryHeader = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
         localMusicStatus = UiKit.text(
             this,
             "正在读取本地音乐…",
             12.5f,
             UiKit.TEXT_3
         )
-        root.addView(localMusicStatus)
+        directoryHeader.addView(
+            localMusicStatus,
+            LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        )
+        val playDirectory = UiKit.text(this, "▶", 18f, UiKit.TEXT, true).apply {
+            gravity = Gravity.CENTER
+            background = UiKit.rounded(UiKit.SURFACE, 18, this@MainActivity)
+            contentDescription = "播放当前目录全部歌曲"
+            setOnClickListener { playSelectedLocalMusicDirectory() }
+        }
+        directoryHeader.addView(
+            playDirectory,
+            LinearLayout.LayoutParams(UiKit.dp(this, 44), UiKit.dp(this, 44)).apply {
+                marginStart = UiKit.dp(this@MainActivity, 10)
+            }
+        )
+        root.addView(directoryHeader)
 
         root.addView(UiKit.spacer(this, 10))
         localMusicDirectoryTabs = LinearLayout(this).apply {
@@ -719,6 +739,24 @@ class MainActivity : Activity() {
                 "目录：$directory · ${localMusicVisibleTracks.size} 首 · 左右滑动查看目录标签，点击切换"
         }
         appendLocalMusicPage()
+    }
+
+    private fun playSelectedLocalMusicDirectory() {
+        val tracks = localMusicVisibleTracks
+        if (tracks.isEmpty()) {
+            toast("当前目录没有可播放的歌曲")
+            return
+        }
+
+        val addedCount = PlayerController.addAll(tracks, playNow = true)
+        val scope = if (localMusicSelectedDirectory == null) "全部目录" else "当前目录"
+        toast(
+            if (addedCount > 0) {
+                "$scope ${tracks.size} 首已加入播放列表"
+            } else {
+                "$scope歌曲已在播放列表中"
+            }
+        )
     }
 
     private fun appendLocalMusicPage() {
