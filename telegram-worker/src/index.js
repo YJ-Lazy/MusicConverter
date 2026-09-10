@@ -216,8 +216,14 @@ async function handleUpdate(env, update) {
 }
 
 async function setup(request, env) {
-  if (!env.TG_BOT_TOKEN || !env.TG_WEBHOOK_SECRET) {
-    return new Response("Missing TG_BOT_TOKEN or TG_WEBHOOK_SECRET", { status: 503 });
+  const missing = ["TG_BOT_TOKEN", "TG_WEBHOOK_SECRET"].filter(
+    (name) => !env[name],
+  );
+  if (missing.length) {
+    return Response.json(
+      { ok: false, error: "Missing Worker runtime secrets", missing },
+      { status: 503 },
+    );
   }
   const auth = request.headers.get("authorization");
   if (auth !== `Bearer ${env.TG_WEBHOOK_SECRET}`) {
@@ -247,7 +253,13 @@ export default {
       return new Response("Not Found", { status: 404 });
     }
     if (!env.TG_BOT_TOKEN || !env.TG_WEBHOOK_SECRET) {
-      return new Response("Worker is not configured", { status: 503 });
+      const missing = ["TG_BOT_TOKEN", "TG_WEBHOOK_SECRET"].filter(
+        (name) => !env[name],
+      );
+      return Response.json(
+        { ok: false, error: "Missing Worker runtime secrets", missing },
+        { status: 503 },
+      );
     }
     if (
       request.headers.get("x-telegram-bot-api-secret-token") !==

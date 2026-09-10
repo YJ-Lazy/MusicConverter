@@ -37,9 +37,17 @@ jobs:
       - name: Configure Telegram webhook and commands
         shell: bash
         run: |
-          RESPONSE=$(curl --fail --silent --show-error --retry 3 \
+          HTTP_CODE=$(curl --silent --show-error --retry 3 \
             --request POST "$WORKER_URL/setup" \
-            --header "Authorization: Bearer $TG_WEBHOOK_SECRET")
+            --header "Authorization: Bearer $TG_WEBHOOK_SECRET" \
+            --output response.json \
+            --write-out '%{http_code}')
+          if [[ "$HTTP_CODE" != "200" ]]; then
+            echo "::error::Worker setup returned HTTP $HTTP_CODE"
+            jq '{ok, error, missing}' response.json || true
+            exit 1
+          fi
+          RESPONSE=$(cat response.json)
           jq -e '.ok == true' <<<"$RESPONSE" >/dev/null
           echo "Telegram webhook setup completed."
 
