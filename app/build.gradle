@@ -89,7 +89,7 @@ chaquopy {
 
 dependencies {
     // Provided by LSPosed at runtime; never package Xposed classes into the APK.
-    compileOnly "de.robv.android.xposed:api:82"
+    compileOnly "io.github.libxposed:api:102.0.0"
     implementation project(':ffmpeg-kit')
     implementation "androidx.room:room-runtime:2.6.1"
     kapt "androidx.room:room-compiler:2.6.1"

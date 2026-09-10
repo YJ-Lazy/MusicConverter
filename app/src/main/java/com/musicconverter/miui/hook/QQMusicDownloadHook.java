@@ -3,6 +3,7 @@ package com.musicconverter.miui.hook;
 import android.app.Application;
 import android.content.Context;
 import android.content.pm.PackageInfo;
+import android.util.Log;
 
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
@@ -11,60 +12,64 @@ import java.util.Set;
 import java.util.WeakHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import de.robv.android.xposed.IXposedHookLoadPackage;
-import de.robv.android.xposed.XC_MethodHook;
-import de.robv.android.xposed.XC_MethodReplacement;
-import de.robv.android.xposed.XposedBridge;
-import de.robv.android.xposed.XposedHelpers;
-import de.robv.android.xposed.callbacks.XC_LoadPackage;
+import io.github.libxposed.api.XposedModule;
 
-/** Hook based on the verified 20.7.0.8 download flow; other versions are attempted best-effort. */
-public final class QQMusicDownloadHook implements IXposedHookLoadPackage {
+/** Modern Xposed API 102 module; reference QQ Music version: 20.7.0.8. */
+public final class QQMusicDownloadHook extends XposedModule {
     private static final String TARGET_PACKAGE = "com.tencent.qqmusic";
     private static final String REFERENCE_VERSION = "20.7.0.8";
     private static final String TASK_CLASS =
             "com.tencent.qqmusic.business.musicdownload.DownloadSongTask";
-    private static final String TAG = "[MusicConverter-QQDownload] ";
-    private static final Set<ClassLoader> INSTALLED =
+    private static final String TAG = "MusicConverter-QQDownload";
+    private final Set<ClassLoader> installed =
             Collections.newSetFromMap(new WeakHashMap<ClassLoader, Boolean>());
+    private final AtomicBoolean attachInstalled = new AtomicBoolean(false);
+    private String processName = "unknown";
 
     @Override
-    public void handleLoadPackage(final XC_LoadPackage.LoadPackageParam lpparam) {
-        if (!TARGET_PACKAGE.equals(lpparam.packageName) || !lpparam.isFirstApplication) {
+    public void onModuleLoaded(ModuleLoadedParam param) {
+        processName = param.getProcessName();
+        log(Log.INFO, TAG, "LOADED API=102 process=" + processName);
+    }
+
+    @Override
+    public void onPackageReady(PackageReadyParam param) {
+        if (!TARGET_PACKAGE.equals(param.getPackageName()) || !param.isFirstPackage()
+                || !attachInstalled.compareAndSet(false, true)) {
             return;
         }
-        log("LOADED process=" + lpparam.processName);
         try {
-            XposedHelpers.findAndHookMethod(Application.class, "attach", Context.class,
-                    new XC_MethodHook() {
-                        @Override
-                        protected void afterHookedMethod(MethodHookParam param) {
-                            if (param.hasThrowable() || !(param.args[0] instanceof Context)) {
-                                return;
-                            }
-                            Context context = (Context) param.args[0];
-                            if (TARGET_PACKAGE.equals(context.getPackageName())) {
-                                install(context, lpparam.processName);
-                            }
-                        }
-                    });
+            // Wait until attach completes, preserving the original hook's context/classloader timing.
+            Method attach = Application.class.getDeclaredMethod("attach", Context.class);
+            hook(attach).intercept(chain -> {
+                Object result = chain.proceed();
+                Object argument = chain.getArg(0);
+                if (argument instanceof Context) {
+                    Context context = (Context) argument;
+                    if (TARGET_PACKAGE.equals(context.getPackageName())) {
+                        install(context);
+                    }
+                }
+                return result;
+            });
         } catch (Throwable error) {
-            log("ERROR attach: " + error);
+            attachInstalled.set(false);
+            log(Log.ERROR, TAG, "ERROR attach", error);
         }
     }
 
     @SuppressWarnings("deprecation")
-    private static void install(Context context, final String processName) {
+    private void install(Context context) {
         try {
             PackageInfo info = context.getPackageManager().getPackageInfo(TARGET_PACKAGE, 0);
-            String installedVersion = info.versionName;
-            if (!REFERENCE_VERSION.equals(installedVersion)) {
-                log("WARN unverified version=" + installedVersion
+            String version = info.versionName;
+            if (!REFERENCE_VERSION.equals(version)) {
+                log(Log.WARN, TAG, "WARN unverified version=" + version
                         + "; reference=" + REFERENCE_VERSION + "; trying hook");
             }
             ClassLoader loader = context.getClassLoader();
-            synchronized (INSTALLED) {
-                if (INSTALLED.contains(loader)) {
+            synchronized (installed) {
+                if (installed.contains(loader)) {
                     return;
                 }
                 Class<?> taskClass = Class.forName(TASK_CLASS, false, loader);
@@ -72,29 +77,22 @@ public final class QQMusicDownloadHook implements IXposedHookLoadPackage {
                 if (needEncrypt.getReturnType() != boolean.class
                         || !Modifier.isPublic(needEncrypt.getModifiers())
                         || Modifier.isStatic(needEncrypt.getModifiers())) {
-                    log("SKIP unexpected method signature");
+                    log(Log.WARN, TAG, "SKIP unexpected method signature");
                     return;
                 }
-                final AtomicBoolean firstCall = new AtomicBoolean(true);
-                XposedBridge.hookMethod(needEncrypt, new XC_MethodReplacement() {
-                    @Override
-                    protected Object replaceHookedMethod(MethodHookParam param) {
-                        if (firstCall.compareAndSet(true, false)) {
-                            log("HIT needEncrypt=false process=" + processName);
-                        }
-                        return Boolean.FALSE;
+                AtomicBoolean firstCall = new AtomicBoolean(true);
+                hook(needEncrypt).intercept(chain -> {
+                    if (firstCall.compareAndSet(true, false)) {
+                        log(Log.INFO, TAG, "HIT needEncrypt=false process=" + processName);
                     }
+                    return Boolean.FALSE;
                 });
-                INSTALLED.add(loader);
-                log("INSTALLED version=" + installedVersion + " DownloadSongTask.n()Z process="
-                        + processName);
+                installed.add(loader);
+                log(Log.INFO, TAG, "INSTALLED version=" + version
+                        + " DownloadSongTask.n()Z process=" + processName);
             }
         } catch (Throwable error) {
-            log("ERROR install: " + error);
+            log(Log.ERROR, TAG, "ERROR install", error);
         }
-    }
-
-    private static void log(String message) {
-        XposedBridge.log(TAG + message);
     }
 }
