@@ -1,0 +1,60 @@
+name: Setup Telegram Webhook
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  setup-and-verify:
+    name: Configure and verify webhook
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      WORKER_URL: https://musicconverter-tg-bot.yuanjuan52025.workers.dev
+      TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
+      TG_WEBHOOK_SECRET: ${{ secrets.TG_WEBHOOK_SECRET }}
+
+    steps:
+      - name: Check required Secrets
+        shell: bash
+        run: |
+          test -n "$TG_BOT_TOKEN" || { echo "::error::Missing TG_BOT_TOKEN"; exit 1; }
+          test -n "$TG_WEBHOOK_SECRET" || { echo "::error::Missing TG_WEBHOOK_SECRET"; exit 1; }
+
+      - name: Check Worker health
+        shell: bash
+        run: |
+          RESPONSE=$(curl --fail --silent --show-error --retry 3 "$WORKER_URL/")
+          jq -e '.ok == true' <<<"$RESPONSE" >/dev/null
+          echo "Worker health check passed."
+
+      - name: Configure Telegram webhook and commands
+        shell: bash
+        run: |
+          RESPONSE=$(curl --fail --silent --show-error --retry 3 \
+            --request POST "$WORKER_URL/setup" \
+            --header "Authorization: Bearer $TG_WEBHOOK_SECRET")
+          jq -e '.ok == true' <<<"$RESPONSE" >/dev/null
+          echo "Telegram webhook setup completed."
+
+      - name: Verify Telegram webhook
+        shell: bash
+        run: |
+          RESPONSE=$(curl --fail --silent --show-error --retry 3 \
+            "https://api.telegram.org/bot${TG_BOT_TOKEN}/getWebhookInfo")
+          EXPECTED_URL="$WORKER_URL/webhook"
+          ACTUAL_URL=$(jq -r '.result.url // ""' <<<"$RESPONSE")
+          LAST_ERROR=$(jq -r '.result.last_error_message // ""' <<<"$RESPONSE")
+
+          if [[ "$ACTUAL_URL" != "$EXPECTED_URL" ]]; then
+            echo "::error::Webhook URL verification failed."
+            exit 1
+          fi
+          if [[ -n "$LAST_ERROR" ]]; then
+            echo "::warning::Telegram reports a previous delivery error: $LAST_ERROR"
+          fi
+
+          echo "Webhook verified: $ACTUAL_URL"
+          echo "Telegram bot is ready. Send /start to test the menu."
