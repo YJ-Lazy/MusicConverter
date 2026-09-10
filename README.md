@@ -183,3 +183,7 @@ MusicConverter 主要用于管理和处理用户自己拥有并有权处理的�
 ## 社区交流
 
 加入 Telegram 群聊：[MusicConverter_YJ_Lazy](https://t.me/MusicConverter_YJ_Lazy)
+
+## Telegram 机器人
+
+仓库内的 [`telegram-bot`](telegram-bot/) 目录提供版本下载、更新日志、格式说明、使用帮助和构建状态菜单。正式 Release 构建成功后，GitHub Actions 会通过仓库 Secrets 中的 `TG_BOT_TOKEN` 与 `TG_CHAT_ID` 自动向 Telegram 发送发布通知。

@@ -203,3 +203,34 @@ jobs:
           path: dist/*
           if-no-files-found: error
           retention-days: 90
+
+      - name: Notify Telegram about stable release
+        env:
+          TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
+          TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
+          TAG: ${{ steps.version.outputs.tag }}
+          VERSION: ${{ steps.version.outputs.version }}
+        shell: bash
+        run: |
+          if [[ -z "$TG_BOT_TOKEN" || -z "$TG_CHAT_ID" ]]; then
+            echo "TG_BOT_TOKEN or TG_CHAT_ID is not configured; skipping Telegram notification."
+            exit 0
+          fi
+
+          MESSAGE=$(cat <<EOF
+          🎵 MusicConverter ${VERSION} 已发布
+
+          📦 版本：${TAG}
+          📱 要求：Android 10 及以上
+          📥 下载：https://github.com/${GITHUB_REPOSITORY}/releases/tag/${TAG}
+          📋 更新内容：https://github.com/${GITHUB_REPOSITORY}/releases/tag/${TAG}
+          EOF
+          )
+
+          curl --fail --silent --show-error \
+            --retry 3 \
+            --request POST \
+            "https://api.telegram.org/bot${TG_BOT_TOKEN}/sendMessage" \
+            --data-urlencode "chat_id=${TG_CHAT_ID}" \
+            --data-urlencode "text=${MESSAGE}" \
+            --data-urlencode "disable_web_page_preview=false"
