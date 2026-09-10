@@ -1642,6 +1642,20 @@ private fun buildEditorHubPage(): ScrollView {
         }
         infoCard.addView(qqGroupRow)
         infoCard.addView(UiKit.groupDivider(this))
+        val telegramRow = UiKit.groupRow(this, "✈", "Telegram 群聊", "MusicConverter_YJ_Lazy", "加入 ›").apply {
+            isClickable = true
+            isFocusable = true
+            setOnClickListener {
+                val telegramUri = Uri.parse("https://t.me/MusicConverter_YJ_Lazy")
+                try {
+                    startActivity(Intent(Intent.ACTION_VIEW, telegramUri))
+                } catch (_: ActivityNotFoundException) {
+                    Toast.makeText(this@MainActivity, "未检测到可打开 Telegram 的应用", Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+        infoCard.addView(telegramRow)
+        infoCard.addView(UiKit.groupDivider(this))
         infoCard.addView(UiKit.groupRow(this, "⌘", "开源组件", "FFmpeg / FFmpegKit · Chaquopy · Room · music-geshizhuanhuan · QMCDecode · Kugo-Music-Converter"))
         root.addView(infoCard)
 
