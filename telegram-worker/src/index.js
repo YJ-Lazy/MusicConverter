@@ -80,6 +80,8 @@ async function github(env, path) {
       Accept: "application/vnd.github+json",
       "User-Agent": "MusicConverter-Telegram-Worker",
     },
+    cf: { cacheTtl: 60, cacheEverything: true },
+    signal: AbortSignal.timeout(8000),
   });
   if (!response.ok) throw new Error(`GitHub API ${response.status}`);
   return response.json();
@@ -199,12 +201,43 @@ async function action(env, chatId, name) {
   return send(env, chatId, "未识别的命令，请发送 /start 打开菜单。");
 }
 
+async function safeAction(env, chatId, name) {
+  try {
+    await action(env, chatId, name);
+  } catch (error) {
+    console.error(`Action ${name} failed`, error?.stack || error);
+    const { githubUrl } = config(env);
+    const fallback = {
+      changelog: {
+        text: "⚠️ 暂时无法读取更新内容，请通过 GitHub Release 查看。",
+        url: `${githubUrl}/releases/latest`,
+        label: "📋 查看更新内容",
+      },
+      status: {
+        text: "⚠️ 暂时无法读取构建状态，请通过 GitHub Actions 查看。",
+        url: `${githubUrl}/actions/workflows/android-apk.yml`,
+        label: "🛠 查看构建状态",
+      },
+    }[name];
+    if (fallback) {
+      await send(env, chatId, fallback.text, {
+        inline_keyboard: [
+          [{ text: fallback.label, url: fallback.url }],
+          [{ text: "⬅️ 返回主菜单", callback_data: "menu" }],
+        ],
+      });
+      return;
+    }
+    await send(env, chatId, "⚠️ 请求处理失败，请稍后重试。", backButton());
+  }
+}
+
 async function handleUpdate(env, update) {
   if (update.callback_query) {
     const query = update.callback_query;
     await telegram(env, "answerCallbackQuery", { callback_query_id: query.id });
     if (query.message?.chat?.id) {
-      await action(env, query.message.chat.id, query.data || "menu");
+      await safeAction(env, query.message.chat.id, query.data || "menu");
     }
     return;
   }
@@ -212,7 +245,7 @@ async function handleUpdate(env, update) {
   const text = message?.text?.trim();
   if (!text?.startsWith("/")) return;
   const command = text.split(/\s+/, 1)[0].slice(1).split("@", 1)[0].toLowerCase();
-  await action(env, message.chat.id, command);
+  await safeAction(env, message.chat.id, command);
 }
 
 async function setup(request, env) {
