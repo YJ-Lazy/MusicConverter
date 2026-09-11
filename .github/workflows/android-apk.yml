@@ -250,7 +250,7 @@ jobs:
         env:
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
           TG_CHAT_ID: -1003953092703
-          TG_TOPIC_RELEASE: 3
+          TG_TOPIC_STABLE: 43
           TG_TOPIC_CHANGELOG: 4
           TAG: ${{ steps.version.outputs.tag }}
           VERSION: ${{ steps.version.outputs.version }}
@@ -276,7 +276,7 @@ jobs:
             --request POST \
             "https://api.telegram.org/bot${TG_BOT_TOKEN}/sendMessage" \
             --data-urlencode "chat_id=${TG_CHAT_ID}" \
-            --data-urlencode "message_thread_id=${TG_TOPIC_RELEASE}" \
+            --data-urlencode "message_thread_id=${TG_TOPIC_STABLE}" \
             --data-urlencode "text=${MESSAGE}" \
             --data-urlencode "disable_web_page_preview=false"
 

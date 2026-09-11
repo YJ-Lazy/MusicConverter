@@ -16,6 +16,7 @@
     "TG_TOPIC_CHAT": "2",
     "TG_TOPIC_FEEDBACK": "7",
     "TG_TOPIC_CHANGELOG": "4",
-    "TG_TOPIC_HOOK": "6"
+    "TG_TOPIC_HOOK": "6",
+    "TG_TOPIC_STABLE": "43"
   }
 }
