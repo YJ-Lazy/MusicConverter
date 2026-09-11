@@ -9,6 +9,13 @@
   },
   "vars": {
     "GITHUB_REPOSITORY": "YJ-Lazy/MusicConverter",
-    "TG_COMMUNITY_URL": "https://t.me/MusicConverter_YJ_Lazy"
+    "TG_COMMUNITY_URL": "https://t.me/MusicConverter_YJ_Lazy",
+    "TG_CHAT_ID": "-1003953092703",
+    "TG_TOPIC_WELCOME": "0",
+    "TG_TOPIC_RELEASE": "3",
+    "TG_TOPIC_CHAT": "2",
+    "TG_TOPIC_FEEDBACK": "7",
+    "TG_TOPIC_CHANGELOG": "4",
+    "TG_TOPIC_HOOK": "6"
   }
 }

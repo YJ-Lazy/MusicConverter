@@ -260,6 +260,22 @@ async function handleUpdate(env, update) {
     return;
   }
   const message = update.message || update.channel_post;
+  if (message?.new_chat_members?.length) {
+    const names = message.new_chat_members
+      .filter((member) => !member.is_bot)
+      .map((member) => escapeHtml(member.first_name || member.username || "新成员"));
+    if (names.length) {
+      const welcomeThread = Number(env.TG_TOPIC_WELCOME || 0);
+      await send(
+        env,
+        message.chat.id,
+        `<b>👋 欢迎加入 MusicConverter</b>\n\n欢迎 ${names.join("、")}！\n发送 /start 可以打开机器人功能菜单。`,
+        menu(env),
+        welcomeThread,
+      );
+    }
+    return;
+  }
   const text = message?.text?.trim();
   if (!text?.startsWith("/")) return;
   const command = text.split(/\s+/, 1)[0].slice(1).split("@", 1)[0].toLowerCase();

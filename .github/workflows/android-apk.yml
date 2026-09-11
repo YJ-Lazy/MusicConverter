@@ -207,7 +207,9 @@ jobs:
       - name: Notify Telegram about stable release
         env:
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
-          TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
+          TG_CHAT_ID: -1003953092703
+          TG_TOPIC_RELEASE: 3
+          TG_TOPIC_CHANGELOG: 4
           TAG: ${{ steps.version.outputs.tag }}
           VERSION: ${{ steps.version.outputs.version }}
         shell: bash
@@ -232,5 +234,23 @@ jobs:
             --request POST \
             "https://api.telegram.org/bot${TG_BOT_TOKEN}/sendMessage" \
             --data-urlencode "chat_id=${TG_CHAT_ID}" \
+            --data-urlencode "message_thread_id=${TG_TOPIC_RELEASE}" \
             --data-urlencode "text=${MESSAGE}" \
+            --data-urlencode "disable_web_page_preview=false"
+
+          CHANGELOG_MESSAGE=$(cat <<EOF
+          🏆 MusicConverter ${VERSION} 更新内容
+
+          📋 完整更新日志：
+          https://github.com/${GITHUB_REPOSITORY}/releases/tag/${TAG}
+          EOF
+          )
+
+          curl --fail --silent --show-error \
+            --retry 3 \
+            --request POST \
+            "https://api.telegram.org/bot${TG_BOT_TOKEN}/sendMessage" \
+            --data-urlencode "chat_id=${TG_CHAT_ID}" \
+            --data-urlencode "message_thread_id=${TG_TOPIC_CHANGELOG}" \
+            --data-urlencode "text=${CHANGELOG_MESSAGE}" \
             --data-urlencode "disable_web_page_preview=false"
