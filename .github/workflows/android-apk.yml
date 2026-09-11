@@ -93,6 +93,48 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+      - name: Notify Telegram about main update
+        if: >-
+          github.event_name == 'push' &&
+          github.ref == 'refs/heads/main' &&
+          !contains(github.event.head_commit.message, '[release]')
+        env:
+          TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
+          TG_CHAT_ID: -1003953092703
+          TG_TOPIC_RELEASE: 3
+          TG_TOPIC_CHANGELOG: 4
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+          COMMIT_SHA: ${{ github.sha }}
+        shell: bash
+        run: |
+          if [[ -z "$TG_BOT_TOKEN" ]]; then
+            echo "TG_BOT_TOKEN is not configured; skipping Telegram notification."
+            exit 0
+          fi
+
+          SHORT_SHA="${COMMIT_SHA:0:7}"
+          COMMIT_URL="https://github.com/${GITHUB_REPOSITORY}/commit/${COMMIT_SHA}"
+          MESSAGE=$(cat <<EOF
+          🔄 MusicConverter 项目更新
+
+          📝 ${COMMIT_MESSAGE}
+          🔖 提交：${SHORT_SHA}
+          ✅ Debug 构建已通过
+          🔗 ${COMMIT_URL}
+          EOF
+          )
+
+          for TOPIC_ID in "$TG_TOPIC_RELEASE" "$TG_TOPIC_CHANGELOG"; do
+            curl --fail --silent --show-error \
+              --retry 3 \
+              --request POST \
+              "https://api.telegram.org/bot${TG_BOT_TOKEN}/sendMessage" \
+              --data-urlencode "chat_id=${TG_CHAT_ID}" \
+              --data-urlencode "message_thread_id=${TOPIC_ID}" \
+              --data-urlencode "text=${MESSAGE}" \
+              --data-urlencode "disable_web_page_preview=false"
+          done
+
   release:
     name: Publish Stable Release
     needs: build-debug
