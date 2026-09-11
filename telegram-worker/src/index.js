@@ -13,6 +13,7 @@ const commands = [
   { command: "group", description: "加入 Telegram 交流群" },
   { command: "feedback", description: "提交问题或建议" },
   { command: "about", description: "关于 MusicConverter" },
+  { command: "topicid", description: "查看当前群聊和话题 ID" },
 ];
 
 const staticText = {
@@ -119,7 +120,7 @@ function backButton() {
   return { inline_keyboard: [[{ text: "⬅️ 返回主菜单", callback_data: "menu" }]] };
 }
 
-async function send(env, chatId, text, replyMarkup) {
+async function send(env, chatId, text, replyMarkup, messageThreadId) {
   const body = {
     chat_id: chatId,
     text,
@@ -127,10 +128,11 @@ async function send(env, chatId, text, replyMarkup) {
     disable_web_page_preview: false,
   };
   if (replyMarkup) body.reply_markup = replyMarkup;
+  if (messageThreadId) body.message_thread_id = messageThreadId;
   return telegram(env, "sendMessage", body);
 }
 
-async function showLatest(env, chatId) {
+async function showLatest(env, chatId, messageThreadId) {
   const release = await github(env, "/releases/latest");
   const apk = (release.assets || []).find((asset) =>
     asset.name.toLowerCase().endsWith(".apk"),
@@ -149,10 +151,10 @@ async function showLatest(env, chatId) {
       [{ text: "📋 Release 页面", url: release.html_url }],
       [{ text: "⬅️ 返回主菜单", callback_data: "menu" }],
     ],
-  });
+  }, messageThreadId);
 }
 
-async function showChangelog(env, chatId) {
+async function showChangelog(env, chatId, messageThreadId) {
   const release = await github(env, "/releases/latest");
   let body = (release.body || "本次发布暂未填写更新说明。").trim();
   if (body.length > 3000) body = `${body.slice(0, 3000)}…`;
@@ -161,13 +163,14 @@ async function showChangelog(env, chatId) {
     chatId,
     `<b>🆕 ${escapeHtml(release.tag_name)} 更新内容</b>\n\n${escapeHtml(body)}`,
     backButton(),
+    messageThreadId,
   );
 }
 
-async function showStatus(env, chatId) {
+async function showStatus(env, chatId, messageThreadId) {
   const data = await github(env, "/actions/workflows/android-apk.yml/runs?per_page=1");
   const run = data.workflow_runs?.[0];
-  if (!run) return send(env, chatId, "暂时没有构建记录。", backButton());
+  if (!run) return send(env, chatId, "暂时没有构建记录。", backButton(), messageThreadId);
   const state = run.conclusion || run.status || "unknown";
   const icon = { success: "✅", failure: "❌", cancelled: "⚪", in_progress: "⏳" }[state] || "ℹ️";
   return send(
@@ -183,27 +186,37 @@ async function showStatus(env, chatId) {
         [{ text: "⬅️ 返回主菜单", callback_data: "menu" }],
       ],
     },
+    messageThreadId,
   );
 }
 
-async function action(env, chatId, name) {
+async function action(env, chatId, name, messageThreadId) {
   const { githubUrl, communityUrl } = config(env);
   if (name === "start" || name === "menu") {
-    return send(env, chatId, "<b>🎵 MusicConverter 助手</b>\n\n请选择需要的功能：", menu(env));
+    return send(env, chatId, "<b>🎵 MusicConverter 助手</b>\n\n请选择需要的功能：", menu(env), messageThreadId);
   }
-  if (name === "latest") return showLatest(env, chatId);
-  if (name === "changelog") return showChangelog(env, chatId);
-  if (name === "status") return showStatus(env, chatId);
-  if (staticText[name]) return send(env, chatId, staticText[name], backButton());
-  if (name === "github") return send(env, chatId, `💻 ${githubUrl}`);
-  if (name === "group") return send(env, chatId, `👥 ${communityUrl}`);
-  if (name === "feedback") return send(env, chatId, `📝 ${githubUrl}/issues/new`);
-  return send(env, chatId, "未识别的命令，请发送 /start 打开菜单。");
+  if (name === "latest") return showLatest(env, chatId, messageThreadId);
+  if (name === "changelog") return showChangelog(env, chatId, messageThreadId);
+  if (name === "status") return showStatus(env, chatId, messageThreadId);
+  if (name === "topicid") {
+    return send(
+      env,
+      chatId,
+      `<b>📍 当前会话信息</b>\n\nChat ID：<code>${escapeHtml(chatId)}</code>\nTopic ID：<code>${escapeHtml(messageThreadId || 0)}</code>`,
+      undefined,
+      messageThreadId,
+    );
+  }
+  if (staticText[name]) return send(env, chatId, staticText[name], backButton(), messageThreadId);
+  if (name === "github") return send(env, chatId, `💻 ${githubUrl}`, undefined, messageThreadId);
+  if (name === "group") return send(env, chatId, `👥 ${communityUrl}`, undefined, messageThreadId);
+  if (name === "feedback") return send(env, chatId, `📝 ${githubUrl}/issues/new`, undefined, messageThreadId);
+  return send(env, chatId, "未识别的命令，请发送 /start 打开菜单。", undefined, messageThreadId);
 }
 
-async function safeAction(env, chatId, name) {
+async function safeAction(env, chatId, name, messageThreadId) {
   try {
-    await action(env, chatId, name);
+    await action(env, chatId, name, messageThreadId);
   } catch (error) {
     console.error(`Action ${name} failed`, error?.stack || error);
     const { githubUrl } = config(env);
@@ -225,10 +238,10 @@ async function safeAction(env, chatId, name) {
           [{ text: fallback.label, url: fallback.url }],
           [{ text: "⬅️ 返回主菜单", callback_data: "menu" }],
         ],
-      });
+      }, messageThreadId);
       return;
     }
-    await send(env, chatId, "⚠️ 请求处理失败，请稍后重试。", backButton());
+    await send(env, chatId, "⚠️ 请求处理失败，请稍后重试。", backButton(), messageThreadId);
   }
 }
 
@@ -237,7 +250,12 @@ async function handleUpdate(env, update) {
     const query = update.callback_query;
     await telegram(env, "answerCallbackQuery", { callback_query_id: query.id });
     if (query.message?.chat?.id) {
-      await safeAction(env, query.message.chat.id, query.data || "menu");
+      await safeAction(
+        env,
+        query.message.chat.id,
+        query.data || "menu",
+        query.message.message_thread_id,
+      );
     }
     return;
   }
@@ -245,7 +263,7 @@ async function handleUpdate(env, update) {
   const text = message?.text?.trim();
   if (!text?.startsWith("/")) return;
   const command = text.split(/\s+/, 1)[0].slice(1).split("@", 1)[0].toLowerCase();
-  await safeAction(env, message.chat.id, command);
+  await safeAction(env, message.chat.id, command, message.message_thread_id);
 }
 
 async function setup(request, env) {
