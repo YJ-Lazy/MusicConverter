@@ -132,6 +132,35 @@ async function send(env, chatId, text, replyMarkup, messageThreadId) {
   return telegram(env, "sendMessage", body);
 }
 
+function isProtectedTopic(env, chatId, messageThreadId) {
+  if (String(chatId) !== String(env.TG_CHAT_ID)) return false;
+  const protectedTopics = (env.TG_ADMIN_ONLY_TOPICS || "")
+    .split(",")
+    .map((value) => Number(value.trim()))
+    .filter((value) => Number.isInteger(value));
+  return protectedTopics.includes(Number(messageThreadId || 0));
+}
+
+async function isChatAdmin(env, chatId, user) {
+  if (!user) return false;
+  const member = await telegram(env, "getChatMember", {
+    chat_id: chatId,
+    user_id: user.id,
+  });
+  return member.status === "creator" || member.status === "administrator";
+}
+
+async function enforceTopicAccess(env, message) {
+  if (!isProtectedTopic(env, message.chat.id, message.message_thread_id)) return true;
+  if (message.sender_chat?.id === message.chat.id) return true;
+  if (await isChatAdmin(env, message.chat.id, message.from)) return true;
+  await telegram(env, "deleteMessage", {
+    chat_id: message.chat.id,
+    message_id: message.message_id,
+  });
+  return false;
+}
+
 async function showLatest(env, chatId, messageThreadId) {
   const release = await github(env, "/releases/latest");
   const apk = (release.assets || []).find((asset) =>
@@ -248,6 +277,22 @@ async function safeAction(env, chatId, name, messageThreadId) {
 async function handleUpdate(env, update) {
   if (update.callback_query) {
     const query = update.callback_query;
+    if (
+      query.message?.chat?.id &&
+      isProtectedTopic(
+        env,
+        query.message.chat.id,
+        query.message.message_thread_id,
+      ) &&
+      !(await isChatAdmin(env, query.message.chat.id, query.from))
+    ) {
+      await telegram(env, "answerCallbackQuery", {
+        callback_query_id: query.id,
+        text: "该话题仅管理员可以操作",
+        show_alert: true,
+      });
+      return;
+    }
     await telegram(env, "answerCallbackQuery", { callback_query_id: query.id });
     if (query.message?.chat?.id) {
       await safeAction(
@@ -260,6 +305,7 @@ async function handleUpdate(env, update) {
     return;
   }
   const message = update.message || update.channel_post;
+  if (!message) return;
   if (message?.new_chat_members?.length) {
     const names = message.new_chat_members
       .filter((member) => !member.is_bot)
@@ -276,6 +322,7 @@ async function handleUpdate(env, update) {
     }
     return;
   }
+  if (!(await enforceTopicAccess(env, message))) return;
   const text = message?.text?.trim();
   if (!text?.startsWith("/")) return;
   const command = text.split(/\s+/, 1)[0].slice(1).split("@", 1)[0].toLowerCase();
