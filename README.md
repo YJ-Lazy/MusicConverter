@@ -179,12 +179,6 @@ Release 构建需要配置对应的签名信息。
 MusicConverter 主要用于管理和处理用户自己拥有并有权处理的本地音频文件。应用不会绕过 Android 系统的存储沙箱限制。
 ## 社区交流
 
-QQ 交流群：**1054469058**
-
-[点击加入 QQ 群](https://qm.qq.com/q/1054469058)
-
-如果链接无法直接打开，请在 QQ 中搜索群号 **1054469058** 加入。
-
 加入 Telegram 群聊：[MusicConverter_YJ_Lazy](https://t.me/MusicConverter_YJ_Lazy)
 
 ## Telegram 机器人

@@ -1629,20 +1629,6 @@ private fun buildEditorHubPage(): ScrollView {
         val infoCard = UiKit.groupCard(this)
         infoCard.addView(UiKit.groupRow(this, "▣", "隐私与文件", "核心处理在本机完成；默认通过 Android SAF 访问用户主动选择的文件"))
         infoCard.addView(UiKit.groupDivider(this))
-        val qqGroupRow = UiKit.groupRow(this, "群", "交流群", "QQ群：1054469058", "加入 ›").apply {
-            isClickable = true
-            isFocusable = true
-            setOnClickListener {
-                val groupUri = Uri.parse("mqqapi://card/show_pslcard?src_type=internal&version=1&uin=1054469058&card_type=group&source=qrcode")
-                try {
-                    startActivity(Intent(Intent.ACTION_VIEW, groupUri))
-                } catch (_: ActivityNotFoundException) {
-                    Toast.makeText(this@MainActivity, "未检测到 QQ，请在 QQ 中搜索群号 1054469058", Toast.LENGTH_LONG).show()
-                }
-            }
-        }
-        infoCard.addView(qqGroupRow)
-        infoCard.addView(UiKit.groupDivider(this))
         val telegramRow = UiKit.groupRow(this, "✈", "Telegram 群聊", "MusicConverter_YJ_Lazy", "加入 ›").apply {
             isClickable = true
             isFocusable = true
