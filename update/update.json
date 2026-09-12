@@ -1,10 +1,12 @@
 {
-  "versionCode": 37,
-  "versionName": "2.5",
-  "title": "MusicConverter 2.5",
+  "versionCode": 38,
+  "versionName": "2.6",
+  "title": "MusicConverter 2.6",
   "changelog": [
-    "2.5 更新：本地音乐扫描结果按来源目录分组，新增“全部”和各目录分页，目录标签可横向滑动浏览，点击标签切换目录",
-    "2.5 更新：优化目录标签与歌曲列表切换体验，横向浏览目录时不会带动首页整体滚动"],
+    "优化日间模式背景、卡片层级和辅助文字对比度",
+    "修复音源管理等弹窗的日间配色，统一复选框、输入框及按钮主题",
+    "编辑器与播放器同步应用主题，保留 API 102 Hook"
+  ],
   "githubUrl": "https://github.com/YJ-Lazy/MusicConverter/releases/latest",
   "quarkUrl": "https://pan.quark.cn/s/bc7cbd178f5a",
   "lanzouUrl": "https://ssssvip.lanzoue.com/b0xxjc13c",
