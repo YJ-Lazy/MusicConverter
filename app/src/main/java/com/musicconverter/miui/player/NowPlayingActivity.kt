@@ -32,6 +32,7 @@ class NowPlayingActivity : Activity(), PlayerController.Listener {
     private var queueDialog: AlertDialog? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        com.musicconverter.miui.ui.UiKit.prepareActivity(this)
         super.onCreate(savedInstanceState)
         PlayerController.initialize(this)
 

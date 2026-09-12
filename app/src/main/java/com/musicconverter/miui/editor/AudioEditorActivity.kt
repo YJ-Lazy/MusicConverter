@@ -71,6 +71,7 @@ class AudioEditorActivity : Activity() {
     private var sourceBackupFile: File? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        com.musicconverter.miui.ui.UiKit.prepareActivity(this)
         super.onCreate(savedInstanceState)
         UiKit.applyTheme(this)
         window.statusBarColor = UiKit.BG

@@ -38,18 +38,24 @@ object UiKit {
             SUCCESS = Color.parseColor("#43D19E")
             BORDER = Color.parseColor("#2B2F3A")
         } else {
-            BG = Color.parseColor("#F6F7FB")
+            BG = Color.parseColor("#F2F5FA")
             SURFACE = Color.parseColor("#FFFFFF")
-            SURFACE_2 = Color.parseColor("#F0F3F8")
-            SURFACE_3 = Color.parseColor("#E6EBF3")
-            TEXT = Color.parseColor("#171A21")
-            TEXT_2 = Color.parseColor("#4F5968")
-            TEXT_3 = Color.parseColor("#7E8897")
-            ACCENT = Color.parseColor("#2563EB")
-            ACCENT_2 = Color.parseColor("#1D4ED8")
-            SUCCESS = Color.parseColor("#17996C")
-            BORDER = Color.parseColor("#D8DEE8")
+            SURFACE_2 = Color.parseColor("#EAF0F7")
+            SURFACE_3 = Color.parseColor("#DDE6F1")
+            TEXT = Color.parseColor("#172438")
+            TEXT_2 = Color.parseColor("#526174")
+            TEXT_3 = Color.parseColor("#627084")
+            ACCENT = Color.parseColor("#245CC5")
+            ACCENT_2 = Color.parseColor("#245CC5")
+            SUCCESS = Color.parseColor("#087A55")
+            BORDER = Color.parseColor("#D4DFEB")
         }
+    }
+
+    fun prepareActivity(activity: android.app.Activity) {
+        activity.setTheme(if (ThemePreferences.isDark(activity)) com.musicconverter.miui.R.style.AppTheme
+            else com.musicconverter.miui.R.style.AppThemeLight)
+        applyTheme(activity)
     }
 
     fun isDark(context: Context): Boolean = ThemePreferences.isDark(context)
@@ -69,7 +75,7 @@ object UiKit {
             if (strokeColor != null && strokeDp > 0) setStroke(dp(context, strokeDp), strokeColor)
         }
 
-    fun ripple(context: Context, color: Int, radiusDp: Int, rippleColor: Int = 0x33FFFFFF): RippleDrawable =
+    fun ripple(context: Context, color: Int, radiusDp: Int, rippleColor: Int = if (isDark(context)) 0x33FFFFFF else 0x18245CC5): RippleDrawable =
         RippleDrawable(
             ColorStateList.valueOf(rippleColor),
             rounded(color, radiusDp, context),
@@ -126,7 +132,7 @@ object UiKit {
         minimumHeight = dp(context, 104)
         background = ripple(context, if (primary) ACCENT_2 else SURFACE_2, 22)
 
-        addView(text(context, icon, 22f, if (primary) Color.WHITE else themedColor(context, "#CFC7FF", "#6650D8"), true))
+        addView(text(context, icon, 22f, if (primary) Color.WHITE else themedColor(context, "#CFC7FF", "#245CC5"), true))
         addView(text(context, title, 15f, if (primary) Color.WHITE else TEXT, true).apply {
             setPadding(0, dp(context, 10), 0, 0)
         })
@@ -177,7 +183,7 @@ object UiKit {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
 
-            val iconView = text(context, icon, 19f, themedColor(context, "#D0C8FF", "#6650D8"), true).apply {
+            val iconView = text(context, icon, 19f, themedColor(context, "#D0C8FF", "#245CC5"), true).apply {
                 gravity = Gravity.CENTER
                 background = rounded(SURFACE_3, 14, context)
             }
@@ -214,7 +220,7 @@ object UiKit {
             context,
             textValue,
             11.5f,
-            if (dark) TEXT_2 else Color.parseColor("#2563EB"),
+            if (dark) TEXT_2 else Color.parseColor("#245CC5"),
             true
         ).apply {
             gravity = Gravity.CENTER
@@ -236,7 +242,7 @@ object UiKit {
 
     fun divider(context: Context): View {
         return View(context).apply {
-            setBackgroundColor(Color.parseColor("#262B35"))
+            setBackgroundColor(BORDER)
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 dp(context, 1)

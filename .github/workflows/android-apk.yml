@@ -234,7 +234,11 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
           if ! gh release view "$TAG" >/dev/null 2>&1; then
-            gh release create "$TAG" --target "$GITHUB_SHA" --title "MusicConverter $VERSION" --generate-notes
+            if [[ -f "release-notes/$TAG.md" ]]; then
+              gh release create "$TAG" --target "$GITHUB_SHA" --title "MusicConverter $VERSION" --notes-file "release-notes/$TAG.md"
+            else
+              gh release create "$TAG" --target "$GITHUB_SHA" --title "MusicConverter $VERSION" --generate-notes
+            fi
           fi
           gh release upload "$TAG" dist/* --clobber
 

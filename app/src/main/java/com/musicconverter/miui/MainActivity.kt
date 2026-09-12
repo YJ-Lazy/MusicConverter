@@ -134,6 +134,7 @@ class MainActivity : Activity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        com.musicconverter.miui.ui.UiKit.prepareActivity(this)
         super.onCreate(savedInstanceState)
         UiKit.applyTheme(this)
         window.statusBarColor = UiKit.BG
@@ -1961,7 +1962,7 @@ private fun buildEditorHubPage(): ScrollView {
         val dialogTheme = if (ThemePreferences.isDark(this)) {
             android.R.style.Theme_Material_Dialog_Alert
         } else {
-            android.R.style.Theme_Material_Light_Dialog_Alert
+            com.musicconverter.miui.R.style.AppDialogLight
         }
         return AlertDialog.Builder(this, dialogTheme)
     }
@@ -1970,7 +1971,7 @@ private fun buildEditorHubPage(): ScrollView {
         val accent = if (ThemePreferences.isDark(this)) {
             UiKit.ACCENT
         } else {
-            Color.parseColor("#2563EB")
+            UiKit.ACCENT
         }
         dialog.getButton(AlertDialog.BUTTON_POSITIVE)?.setTextColor(accent)
         dialog.getButton(AlertDialog.BUTTON_NEGATIVE)?.setTextColor(accent)

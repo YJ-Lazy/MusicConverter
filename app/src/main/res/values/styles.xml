@@ -9,4 +9,30 @@
         <item name="android:windowBackground">#0B0D12</item>
         <item name="android:colorAccent">#8B5CF6</item>
     </style>
+    <style name="AppThemeLight" parent="@android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:fontFamily">sans</item>
+        <item name="android:windowActionModeOverlay">true</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
+        <item name="android:statusBarColor">#F2F5FA</item>
+        <item name="android:navigationBarColor">#F2F5FA</item>
+        <item name="android:windowBackground">#F2F5FA</item>
+        <item name="android:colorAccent">#245CC5</item>
+        <item name="android:colorControlActivated">#245CC5</item>
+        <item name="android:colorControlNormal">#596779</item>
+        <item name="android:textColorPrimary">#172438</item>
+        <item name="android:textColorSecondary">#526174</item>
+        <item name="android:textColorHint">#627084</item>
+        <item name="android:alertDialogTheme">@style/AppDialogLight</item>
+    </style>
+    <style name="AppDialogLight" parent="@android:style/Theme.Material.Light.Dialog.Alert">
+        <item name="android:colorAccent">#245CC5</item>
+        <item name="android:colorControlActivated">#245CC5</item>
+        <item name="android:colorControlNormal">#596779</item>
+        <item name="android:colorBackground">#FFFFFF</item>
+        <item name="android:textColorPrimary">#172438</item>
+        <item name="android:textColorSecondary">#526174</item>
+        <item name="android:textColorHint">#627084</item>
+    </style>
 </resources>
