@@ -1345,7 +1345,7 @@ private fun buildEditorHubPage(): ScrollView {
             this,
             "≋",
             24f,
-            Color.WHITE,
+            UiKit.onPrimaryContainer(this),
             true
         ).apply {
             gravity = Gravity.CENTER

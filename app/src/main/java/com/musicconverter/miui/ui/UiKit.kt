@@ -45,8 +45,8 @@ object UiKit {
             TEXT = Color.parseColor("#172438")
             TEXT_2 = Color.parseColor("#526174")
             TEXT_3 = Color.parseColor("#627084")
-            ACCENT = Color.parseColor("#245CC5")
-            ACCENT_2 = Color.parseColor("#245CC5")
+            ACCENT = Color.parseColor("#4C8FD8")
+            ACCENT_2 = Color.parseColor("#D6E9FF")
             SUCCESS = Color.parseColor("#087A55")
             BORDER = Color.parseColor("#D4DFEB")
         }
@@ -75,7 +75,7 @@ object UiKit {
             if (strokeColor != null && strokeDp > 0) setStroke(dp(context, strokeDp), strokeColor)
         }
 
-    fun ripple(context: Context, color: Int, radiusDp: Int, rippleColor: Int = if (isDark(context)) 0x33FFFFFF else 0x18245CC5): RippleDrawable =
+    fun ripple(context: Context, color: Int, radiusDp: Int, rippleColor: Int = if (isDark(context)) 0x33FFFFFF else 0x284C8FD8): RippleDrawable =
         RippleDrawable(
             ColorStateList.valueOf(rippleColor),
             rounded(color, radiusDp, context),
@@ -132,17 +132,17 @@ object UiKit {
         minimumHeight = dp(context, 104)
         background = ripple(context, if (primary) ACCENT_2 else SURFACE_2, 22)
 
-        addView(text(context, icon, 22f, if (primary) Color.WHITE else themedColor(context, "#CFC7FF", "#245CC5"), true))
-        addView(text(context, title, 15f, if (primary) Color.WHITE else TEXT, true).apply {
+        addView(text(context, icon, 22f, if (primary) primaryActionContent(context) else themedColor(context, "#CFC7FF", "#397CC3"), true))
+        addView(text(context, title, 15f, if (primary) primaryActionContent(context) else TEXT, true).apply {
             setPadding(0, dp(context, 10), 0, 0)
         })
-        addView(text(context, subtitle, 11.5f, if (primary) Color.parseColor("#E9E5FF") else TEXT_3).apply {
+        addView(text(context, subtitle, 11.5f, if (primary) primaryActionSecondaryContent(context) else TEXT_3).apply {
             setPadding(0, dp(context, 5), 0, 0)
         })
     }
 
     fun wideButton(context: Context, icon: String, title: String, primary: Boolean = false): TextView =
-        text(context, "$icon   $title", 15f, if (primary) Color.WHITE else TEXT, true).apply {
+        text(context, "$icon   $title", 15f, if (primary) primaryActionContent(context) else TEXT, true).apply {
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(context, 18), 0, dp(context, 18), 0)
             minimumHeight = dp(context, 54)
@@ -183,7 +183,7 @@ object UiKit {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
 
-            val iconView = text(context, icon, 19f, themedColor(context, "#D0C8FF", "#245CC5"), true).apply {
+            val iconView = text(context, icon, 19f, themedColor(context, "#D0C8FF", "#397CC3"), true).apply {
                 gravity = Gravity.CENTER
                 background = rounded(SURFACE_3, 14, context)
             }
@@ -220,7 +220,7 @@ object UiKit {
             context,
             textValue,
             11.5f,
-            if (dark) TEXT_2 else Color.parseColor("#245CC5"),
+            if (dark) TEXT_2 else Color.parseColor("#397CC3"),
             true
         ).apply {
             gravity = Gravity.CENTER
@@ -250,11 +250,17 @@ object UiKit {
         }
     }
 
+    fun primaryActionContent(context: Context): Int =
+        themedColor(context, "#FFFFFF", "#183B63")
+
+    fun primaryActionSecondaryContent(context: Context): Int =
+        themedColor(context, "#E9E5FF", "#456785")
+
     fun primaryContainer(context: Context): Int =
-        themedColor(context, "#282142", "#E8F1FF")
+        themedColor(context, "#282142", "#EAF4FF")
 
     fun onPrimaryContainer(context: Context): Int =
-        themedColor(context, "#ECE8FF", "#183B73")
+        themedColor(context, "#ECE8FF", "#245584")
 
     fun secondaryContainer(context: Context): Int =
         themedColor(context, "#242A39", "#EEF3FA")
