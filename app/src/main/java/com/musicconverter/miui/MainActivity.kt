@@ -365,7 +365,22 @@ class MainActivity : Activity() {
                 UiKit.dp(this@MainActivity, 8),
                 0
             )
-            addView(UiKit.text(this@MainActivity, "本地音乐", 34f, UiKit.TEXT, true))
+            addView(LinearLayout(this@MainActivity).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                addView(UiKit.text(this@MainActivity, "本地音乐", 34f, UiKit.TEXT, true))
+                addView(
+                    UiKit.badge(this@MainActivity, "正式版").apply {
+                        contentDescription = "正式版"
+                    },
+                    LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.WRAP_CONTENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                    ).apply {
+                        marginStart = UiKit.dp(this@MainActivity, 10)
+                    }
+                )
+            })
             addView(
                 UiKit.text(
                     this@MainActivity,
