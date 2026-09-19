@@ -1,17 +1,15 @@
 {
-  "versionCode": 38,
-  "versionName": "2.6",
-  "title": "MusicConverter 2.6",
+  "versionCode": 39,
+  "versionName": "2.6.1",
+  "title": "MusicConverter Hook 2.6.1",
   "changelog": [
-    "优化日间模式背景、卡片层级和辅助文字对比度",
-    "修复音源管理等弹窗的日间配色，统一复选框、输入框及按钮主题",
-    "编辑器与播放器同步应用主题，保留 API 102 Hook"
+    "尝试适配了免root框架，正常版无需更新。"
   ],
   "githubUrl": "https://github.com/YJ-Lazy/MusicConverter/releases/latest",
   "quarkUrl": "https://pan.quark.cn/s/bc7cbd178f5a",
   "lanzouUrl": "https://ssssvip.lanzoue.com/b0xxjc13c",
   "lanzouPassword": "6666",
-  "force": true,
+  "force": false,
   "minSupportedVersionCode": 37,
   "allowedStayVersionCodes": [],
   "blockedVersionCodes": []
