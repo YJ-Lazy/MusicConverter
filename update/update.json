@@ -1,9 +1,11 @@
 {
-  "versionCode": 39,
-  "versionName": "2.6.1",
-  "title": "MusicConverter Hook 2.6.1",
+  "versionCode": 40,
+  "versionName": "2.6.2",
+  "title": "MusicConverter 2.6.2",
   "changelog": [
-    "尝试适配了免root框架，正常版无需更新。"
+    "Hook版：修复首页“免广告·享纯净”推广卡片及播放栏上方免流量推广条，已通过用户真机验证。",
+    "Hook版：尝试适配免root框架，仅支持管理器模式，免root效果仍待验证。",
+    "两版统一版本号至2.6.2，仅提供通用版；正常版无新增功能，可按需更新。"
   ],
   "githubUrl": "https://github.com/YJ-Lazy/MusicConverter/releases/latest",
   "quarkUrl": "https://pan.quark.cn/s/bc7cbd178f5a",
