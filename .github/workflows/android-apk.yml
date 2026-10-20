@@ -91,7 +91,7 @@ jobs:
           name: MusicConverter-v${{ steps.debug_version.outputs.version }}-debug-${{ github.sha }}
           path: dist/*
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 7
 
       - name: Notify Telegram about main update
         if: >-
@@ -248,7 +248,7 @@ jobs:
           name: MusicConverter-${{ steps.version.outputs.tag }}
           path: dist/*
           if-no-files-found: error
-          retention-days: 90
+          retention-days: 7
 
       - name: Notify Telegram about stable release
         env:
