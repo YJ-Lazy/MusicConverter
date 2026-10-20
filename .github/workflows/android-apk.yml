@@ -242,6 +242,21 @@ jobs:
           fi
           gh release upload "$TAG" dist/* --clobber
 
+      - name: Delete older stable releases
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CURRENT_TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          # Keep the release just published; remove older stable releases and their tags.
+          gh release list --limit 1000 --json tagName,isDraft,isPrerelease \
+            | jq -r --arg current "$CURRENT_TAG" '.[] | select(.tagName != $current and .isDraft == false and .isPrerelease == false) | .tagName' \
+            | while IFS= read -r OLD_TAG; do
+                [[ -n "$OLD_TAG" ]] || continue
+                echo "Deleting older stable release: $OLD_TAG"
+                gh release delete "$OLD_TAG" --yes --cleanup-tag
+              done
+
       - name: Upload signed Release artifact
         uses: actions/upload-artifact@v4
         with:
