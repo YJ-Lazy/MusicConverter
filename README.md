@@ -6,7 +6,7 @@
 最低 Android 版本：**Android 10（API 29）**
 ## 社区交流
 hook版可在网盘下载
-[蓝奏云]( https://ssssvip.lanzoue.com/b0xxjc13c)或者前往tg频道获取
+[蓝奏云]( https://ssssvip.lanzoue.com/b0xxjc13c)密码：6666或者前往tg频道获取
 加入 Telegram 群聊：[MusicConverter_YJ_Lazy](https://t.me/MusicConverter_YJ_Lazy)
 
 ## Telegram 机器人
