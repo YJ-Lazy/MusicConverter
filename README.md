@@ -5,7 +5,8 @@
 当前正式版本：**v2.6**  
 最低 Android 版本：**Android 10（API 29）**
 ## 社区交流
-hook版可在网盘下载或者前往tg频道获取
+hook版可在网盘下载
+[蓝奏云]( https://ssssvip.lanzoue.com/b0xxjc13c)或者前往tg频道获取
 加入 Telegram 群聊：[MusicConverter_YJ_Lazy](https://t.me/MusicConverter_YJ_Lazy)
 
 ## Telegram 机器人
