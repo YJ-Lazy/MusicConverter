@@ -128,6 +128,7 @@ object FfmpegEngine {
 
     private fun execute(args: List<String>): FfmpegResult = try {
         val session = FFmpegKit.executeWithArguments(args.toTypedArray())
+        // FFmpegKitNext exposes session results through public getter methods.
         val returnCode = session.getReturnCode()
         if (ReturnCode.isSuccess(returnCode)) {
             FfmpegResult(true, "完成")
