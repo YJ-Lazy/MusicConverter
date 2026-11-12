@@ -90,7 +90,7 @@ chaquopy {
 dependencies {
     // Provided by the framework at runtime.
     compileOnly "io.github.libxposed:api:102.0.0"
-    implementation project(':ffmpeg-kit')
+    implementation "com.arthenica:ffmpeg-kit-next:9.0.2"
     implementation "androidx.room:room-runtime:2.6.1"
     kapt "androidx.room:room-compiler:2.6.1"
 }
