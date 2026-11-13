@@ -33,10 +33,42 @@ jobs:
   build-debug:
     name: Build Debug APK
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 240
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Checkout FFmpegKitNext
+        uses: actions/checkout@v4
+        with:
+          repository: arthenica/ffmpeg-kit-next
+          ref: v9.0.2
+          path: ffmpeg-kit-next
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+            accept-flake-config = true
+
+      - name: Build FFmpegKitNext Android AAR
+        working-directory: ffmpeg-kit-next
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./nix-android.sh -p android-r27d
+
+      - name: Stage FFmpegKitNext local Maven repository
+        shell: bash
+        run: |
+          set -euo pipefail
+          source_repo="$(find ffmpeg-kit-next/prebuilt -type d -name 'bundle-android-aar-*-maven' -print -quit)"
+          test -n "$source_repo"
+          mkdir -p third_party/ffmpegkitnext-maven
+          cp -a "$source_repo"/. third_party/ffmpegkitnext-maven/
+          test -s third_party/ffmpegkitnext-maven/com/arthenica/ffmpeg-kit-next/9.0.2/ffmpeg-kit-next-9.0.2.aar
+          test -s third_party/ffmpegkitnext-maven/com/arthenica/ffmpeg-kit-next/9.0.2/ffmpeg-kit-next-9.0.2.pom
 
       - name: Set up Java 17
         uses: actions/setup-java@v5
@@ -66,8 +98,7 @@ jobs:
           test -s app/src/main/res/mipmap-mdpi/ic_launcher.png
           test -s app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
           test -s app/src/main/python/assets/kugou_key.xz
-          test -s ffmpeg-kit/android/libs/arm64-v8a/libavcodec.so
-          test -s ffmpeg-kit/android/libs/armeabi-v7a/libavcodec.so
+          test -s third_party/ffmpegkitnext-maven/com/arthenica/ffmpeg-kit-next/9.0.2/ffmpeg-kit-next-9.0.2.aar
           ! test -d app/compressed-src
           ! test -d app/split-src
 
@@ -143,12 +174,44 @@ jobs:
       (github.event_name == 'workflow_dispatch' && inputs.publish_release) ||
       (github.event_name == 'push' && github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, '[release]'))
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 240
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Checkout FFmpegKitNext
+        uses: actions/checkout@v4
+        with:
+          repository: arthenica/ffmpeg-kit-next
+          ref: v9.0.2
+          path: ffmpeg-kit-next
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+            accept-flake-config = true
+
+      - name: Build FFmpegKitNext Android AAR
+        working-directory: ffmpeg-kit-next
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./nix-android.sh -p android-r27d
+
+      - name: Stage FFmpegKitNext local Maven repository
+        shell: bash
+        run: |
+          set -euo pipefail
+          source_repo="$(find ffmpeg-kit-next/prebuilt -type d -name 'bundle-android-aar-*-maven' -print -quit)"
+          test -n "$source_repo"
+          mkdir -p third_party/ffmpegkitnext-maven
+          cp -a "$source_repo"/. third_party/ffmpegkitnext-maven/
+          test -s third_party/ffmpegkitnext-maven/com/arthenica/ffmpeg-kit-next/9.0.2/ffmpeg-kit-next-9.0.2.aar
+          test -s third_party/ffmpegkitnext-maven/com/arthenica/ffmpeg-kit-next/9.0.2/ffmpeg-kit-next-9.0.2.pom
 
       - name: Set up Java 17
         uses: actions/setup-java@v5
