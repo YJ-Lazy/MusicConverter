@@ -14,7 +14,7 @@ import kotlin.math.abs
 class MiniPlayerView(context: Context) : LinearLayout(context), PlayerController.Listener {
     private val cover = ImageView(context)
     private val title = UiKit.text(context, "暂无播放", 14f, UiKit.TEXT, true)
-    private val artist = UiKit.text(context, "在线音乐或本地音乐选择歌曲", 11f, UiKit.TEXT_3)
+    private val artist = UiKit.text(context, "从本地音乐选择歌曲", 11f, UiKit.TEXT_3)
     private val play = UiKit.text(context, "▶", 22f, UiKit.TEXT, true)
     private var alwaysVisible = true
     private var hasTrack = false
@@ -86,7 +86,7 @@ class MiniPlayerView(context: Context) : LinearLayout(context), PlayerController
             hasTrack = queue.isNotEmpty() && index in queue.indices
             if (!hasTrack) {
                 title.text = "暂无播放"
-                artist.text = "在线音乐或本地音乐选择歌曲"
+                artist.text = "从本地音乐选择歌曲"
                 cover.setImageDrawable(null)
                 play.text = "▶"
                 play.alpha = 0.55f
@@ -100,7 +100,7 @@ class MiniPlayerView(context: Context) : LinearLayout(context), PlayerController
             hasTrack = track != null
             if (track == null) {
                 title.text = "暂无播放"
-                artist.text = "在线音乐或本地音乐选择歌曲"
+                artist.text = "从本地音乐选择歌曲"
                 cover.setImageDrawable(null)
                 play.text = "▶"
                 play.alpha = 0.55f

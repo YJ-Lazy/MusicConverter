@@ -12,43 +12,43 @@ import android.widget.LinearLayout
 import android.widget.TextView
 
 object UiKit {
-    var BG = Color.parseColor("#0A0B10")
-    var SURFACE = Color.parseColor("#14161D")
-    var SURFACE_2 = Color.parseColor("#1B1E27")
-    var SURFACE_3 = Color.parseColor("#242A39")
-    var TEXT = Color.parseColor("#F7F8FC")
-    var TEXT_2 = Color.parseColor("#CFD3DC")
-    var TEXT_3 = Color.parseColor("#8F96A3")
-    var ACCENT = Color.parseColor("#8B5CF6")
-    var ACCENT_2 = Color.parseColor("#6D5DFB")
-    var SUCCESS = Color.parseColor("#43D19E")
-    var BORDER = Color.parseColor("#2B2F3A")
+    var BG = Color.parseColor("#161A2B")
+    var SURFACE = Color.parseColor("#20243A")
+    var SURFACE_2 = Color.parseColor("#272B43")
+    var SURFACE_3 = Color.parseColor("#303451")
+    var TEXT = Color.parseColor("#EDF0FB")
+    var TEXT_2 = Color.parseColor("#C8D1E5")
+    var TEXT_3 = Color.parseColor("#ADB7D0")
+    var ACCENT = Color.parseColor("#C3AEFF")
+    var ACCENT_2 = Color.parseColor("#A995ED")
+    var SUCCESS = Color.parseColor("#65D9AE")
+    var BORDER = Color.parseColor("#373D59")
 
     fun applyTheme(context: Context) {
         if (ThemePreferences.isDark(context)) {
-            BG = Color.parseColor("#0A0B10")
-            SURFACE = Color.parseColor("#14161D")
-            SURFACE_2 = Color.parseColor("#1B1E27")
-            SURFACE_3 = Color.parseColor("#242A39")
-            TEXT = Color.parseColor("#F7F8FC")
-            TEXT_2 = Color.parseColor("#CFD3DC")
-            TEXT_3 = Color.parseColor("#8F96A3")
-            ACCENT = Color.parseColor("#8B5CF6")
-            ACCENT_2 = Color.parseColor("#6D5DFB")
-            SUCCESS = Color.parseColor("#43D19E")
-            BORDER = Color.parseColor("#2B2F3A")
+            BG = Color.parseColor("#161A2B")
+            SURFACE = Color.parseColor("#20243A")
+            SURFACE_2 = Color.parseColor("#272B43")
+            SURFACE_3 = Color.parseColor("#303451")
+            TEXT = Color.parseColor("#EDF0FB")
+            TEXT_2 = Color.parseColor("#C8D1E5")
+            TEXT_3 = Color.parseColor("#ADB7D0")
+            ACCENT = Color.parseColor("#C3AEFF")
+            ACCENT_2 = Color.parseColor("#A995ED")
+            SUCCESS = Color.parseColor("#65D9AE")
+            BORDER = Color.parseColor("#373D59")
         } else {
-            BG = Color.parseColor("#F2F5FA")
+            BG = Color.parseColor("#F6F9FC")
             SURFACE = Color.parseColor("#FFFFFF")
-            SURFACE_2 = Color.parseColor("#EAF0F7")
-            SURFACE_3 = Color.parseColor("#DDE6F1")
-            TEXT = Color.parseColor("#172438")
-            TEXT_2 = Color.parseColor("#526174")
-            TEXT_3 = Color.parseColor("#627084")
-            ACCENT = Color.parseColor("#4C8FD8")
-            ACCENT_2 = Color.parseColor("#D6E9FF")
+            SURFACE_2 = Color.parseColor("#ECF3FA")
+            SURFACE_3 = Color.parseColor("#E4EDF7")
+            TEXT = Color.parseColor("#173047")
+            TEXT_2 = Color.parseColor("#36536C")
+            TEXT_3 = Color.parseColor("#526B83")
+            ACCENT = Color.parseColor("#184FB9")
+            ACCENT_2 = Color.parseColor("#406D9C")
             SUCCESS = Color.parseColor("#087A55")
-            BORDER = Color.parseColor("#D4DFEB")
+            BORDER = Color.parseColor("#D5E2ED")
         }
     }
 
@@ -130,7 +130,7 @@ object UiKit {
         isFocusable = true
         setPadding(dp(context, 16), dp(context, 15), dp(context, 16), dp(context, 15))
         minimumHeight = dp(context, 104)
-        background = ripple(context, if (primary) ACCENT_2 else SURFACE_2, 22)
+        background = ripple(context, if (primary) primaryFill(context) else SURFACE_2, 22)
 
         addView(text(context, icon, 22f, if (primary) primaryActionContent(context) else themedColor(context, "#CFC7FF", "#397CC3"), true))
         addView(text(context, title, 15f, if (primary) primaryActionContent(context) else TEXT, true).apply {
@@ -143,12 +143,12 @@ object UiKit {
 
     fun wideButton(context: Context, icon: String, title: String, primary: Boolean = false): TextView =
         text(context, "$icon   $title", 15f, if (primary) primaryActionContent(context) else TEXT, true).apply {
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(context, 18), 0, dp(context, 18), 0)
-            minimumHeight = dp(context, 54)
+            gravity = if (primary) Gravity.CENTER else Gravity.CENTER_VERTICAL
+            setPadding(dp(context, 14), dp(context, 8), dp(context, 14), dp(context, 8))
+            minimumHeight = dp(context, 48)
             isClickable = true
             isFocusable = true
-            background = ripple(context, if (primary) ACCENT_2 else SURFACE_2, 18)
+            background = ripple(context, if (primary) primaryFill(context) else SURFACE_2, 18)
         }
 
 
@@ -158,12 +158,9 @@ object UiKit {
             gravity = Gravity.CENTER
             isClickable = true
             isFocusable = true
-            background = rounded(Color.TRANSPARENT, 18, context)
-
-            addView(text(context, icon, 20f, TEXT_3, true).apply {
-                gravity = Gravity.CENTER
-            })
-            addView(text(context, title, 11.5f, TEXT_3, true).apply {
+            contentDescription = title
+            addView(NavigationIcon(context, icon), LinearLayout.LayoutParams(dp(context, 52), dp(context, 29)))
+            addView(text(context, title, 11f, TEXT_3, true).apply {
                 gravity = Gravity.CENTER
                 setPadding(0, dp(context, 3), 0, 0)
             })
@@ -171,12 +168,68 @@ object UiKit {
 
     fun setNavSelected(item: LinearLayout, selected: Boolean) {
         val context = item.context
-        item.background = if (selected) rounded(primaryContainer(context), 18, context) else rounded(Color.TRANSPARENT, 18, context)
-        val color = if (selected) onPrimaryContainer(context) else TEXT_3
-        for (i in 0 until item.childCount) {
-            (item.getChildAt(i) as? TextView)?.setTextColor(color)
+        val icon = item.getChildAt(0) as NavigationIcon
+        icon.background = if (selected) rounded(primaryContainer(context), 16, context) else null
+        icon.tint = if (selected) ACCENT else TEXT_3
+        icon.invalidate()
+        (item.getChildAt(1) as TextView).setTextColor(icon.tint)
+        item.isSelected = selected
+    }
+
+    private class NavigationIcon(context: Context, private val type: String) : View(context) {
+        var tint = TEXT_3
+        private val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+            style = android.graphics.Paint.Style.STROKE
+            strokeCap = android.graphics.Paint.Cap.ROUND
+            strokeJoin = android.graphics.Paint.Join.ROUND
+            strokeWidth = 1.6f
+        }
+        private val lines = android.graphics.Path()
+
+        override fun onDraw(canvas: android.graphics.Canvas) {
+            super.onDraw(canvas)
+            val dim = dp(context, 21).toFloat()
+            canvas.save()
+            canvas.translate((width - dim) / 2, (height - dim) / 2)
+            canvas.scale(dim / 24, dim / 24)
+            paint.color = tint
+            lines.reset()
+            fun stroke(vararg xy: Float) {
+                lines.moveTo(xy[0], xy[1])
+                for (i in 2 until xy.size step 2) lines.lineTo(xy[i], xy[i + 1])
+            }
+            when (type) {
+                "music" -> {
+                    stroke(9f, 16f, 9f, 6f, 20f, 4f, 20f, 14f)
+                    canvas.drawOval(3f, 15f, 9f, 20f, paint)
+                    canvas.drawOval(14f, 13f, 20f, 18f, paint)
+                }
+                "edit" -> {
+                    stroke(3f, 10f, 3f, 14f)
+                    stroke(7.5f, 7f, 7.5f, 17f)
+                    stroke(12f, 4f, 12f, 20f)
+                    stroke(16.5f, 7f, 16.5f, 17f)
+                    stroke(21f, 10f, 21f, 14f)
+                }
+                "convert" -> {
+                    stroke(12f, 3f, 12f, 15f)
+                    stroke(7f, 10f, 12f, 15f, 17f, 10f)
+                    stroke(4f, 16f, 4f, 20f, 20f, 20f, 20f, 16f)
+                }
+                else -> {
+                    canvas.drawCircle(12f, 12f, 6f, paint)
+                    canvas.drawCircle(12f, 12f, 2f, paint)
+                    stroke(12f, 3f, 12f, 6f)
+                    stroke(12f, 18f, 12f, 21f)
+                    stroke(3f, 12f, 6f, 12f)
+                    stroke(18f, 12f, 21f, 12f)
+                }
+            }
+            canvas.drawPath(lines, paint)
+            canvas.restore()
         }
     }
+
 
     fun infoRow(context: Context, icon: String, title: String, subtitle: String): LinearLayout =
         LinearLayout(context).apply {
@@ -250,17 +303,19 @@ object UiKit {
         }
     }
 
+    fun primaryFill(context: Context): Int = themedColor(context, "#6947B6", "#184FB9")
+
     fun primaryActionContent(context: Context): Int =
-        themedColor(context, "#FFFFFF", "#183B63")
+        Color.WHITE
 
     fun primaryActionSecondaryContent(context: Context): Int =
-        themedColor(context, "#E9E5FF", "#456785")
+        themedColor(context, "#E9E5FF", "#DCEAFF")
 
     fun primaryContainer(context: Context): Int =
-        themedColor(context, "#282142", "#EAF4FF")
+        themedColor(context, "#33294F", "#E0EDFC")
 
     fun onPrimaryContainer(context: Context): Int =
-        themedColor(context, "#ECE8FF", "#245584")
+        themedColor(context, "#E0D5FF", "#184A9F")
 
     fun secondaryContainer(context: Context): Int =
         themedColor(context, "#242A39", "#EEF3FA")
