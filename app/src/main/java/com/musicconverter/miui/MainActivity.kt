@@ -29,6 +29,11 @@ import android.widget.RadioButton
 import android.widget.RadioGroup
 import android.widget.ScrollView
 import android.widget.TextView
+import android.widget.EditText
+import android.text.Editable
+import android.text.TextWatcher
+import android.provider.OpenableColumns
+import android.view.inputmethod.InputMethodManager
 import android.widget.Toast
 import org.json.JSONArray
 import org.json.JSONObject
@@ -46,8 +51,6 @@ import com.musicconverter.miui.ui.UiKit
 import com.musicconverter.miui.ui.ThemePreferences
 import com.musicconverter.miui.update.RemoteUpdateManager
 import com.musicconverter.miui.update.UpdateCheckResult
-import com.musicconverter.miui.online.MusicSourceManager
-import com.musicconverter.miui.online.SourceKind
 import com.musicconverter.miui.cover.OnlineCoverResolver
 import com.musicconverter.miui.player.ImageLoader
 import com.musicconverter.miui.player.MiniPlayerView
@@ -55,6 +58,24 @@ import com.musicconverter.miui.player.PlayerController
 import com.musicconverter.miui.player.Track
 
 class MainActivity : Activity() {
+    private val localMusicPickCode = 1502
+    private val IMPORTED_MUSIC_DIRECTORY = "手动添加"
+    private var importedLocalMusic: List<Track> = emptyList()
+    private var localMusicFileNames: Map<String, String> = emptyMap()
+    private var allLocalMusicTracks: List<Track> = emptyList()
+    private var localMusicContainer: FrameLayout? = null
+    private var localMusicHome: ScrollView? = null
+    private var localMusicSearchPage: LinearLayout? = null
+    private var localMusicSearchField: EditText? = null
+    private var localMusicSearchList: LinearLayout? = null
+    private var localMusicSearchScroll: ScrollView? = null
+    private var localMusicSearchStatus: TextView? = null
+    private var localMusicSearchDirectory: String? = null
+    private var localMusicSearchMatches: List<Track> = emptyList()
+    private var localMusicSearchRenderedCount = 0
+    private val localMusicSearchRefresh = Runnable { updateLocalMusicSearch() }
+    private var savedLocalMusicState: Bundle? = null
+
     private val pickFileCode = 1001
     private val pickTreeCode = 1002
     private val saveConvertedAsCode = 1003
@@ -90,7 +111,6 @@ class MainActivity : Activity() {
     private lateinit var allFilesAccessButton: TextView
     private lateinit var fullStorageScanButton: TextView
     private lateinit var status: TextView
-    private lateinit var deleteAsk: CheckBox
     private var miniPlayerView: MiniPlayerView? = null
     private var localMusicHost: LinearLayout? = null
     private var localMusicStatus: TextView? = null
@@ -104,6 +124,8 @@ class MainActivity : Activity() {
     private var localMusicRenderedCount = 0
     private var localMusicPageLoading = false
     private val localMusicPageSize = 40
+    private var selectedMainPage = 0
+    private var selectMainPage: ((Int) -> Unit)? = null
     private var batchReceiverRegistered = false
     private var mandatoryUpdateDialog: AlertDialog? = null
     @Volatile private var mandatoryCheckRunning = false
@@ -134,6 +156,7 @@ class MainActivity : Activity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        savedLocalMusicState = savedInstanceState?.getBundle("local_music_ui")
         com.musicconverter.miui.ui.UiKit.prepareActivity(this)
         super.onCreate(savedInstanceState)
         UiKit.applyTheme(this)
@@ -147,7 +170,7 @@ class MainActivity : Activity() {
                     View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
             }
         PlayerController.initialize(this)
-        buildUi()
+        buildUi(savedInstanceState?.getInt("selected_main_page") ?: 0)
         enforceDisclaimerConsent()
         window.decorView.post { ensureLocalMusicPermissionAndLoad() }
 
@@ -204,22 +227,19 @@ class MainActivity : Activity() {
             2. 合法使用与版权
             你应仅处理自己依法拥有、已获得授权，或法律允许使用的音频及其他内容。请勿利用本软件实施侵权、规避技术保护措施、传播违法内容或其他违反适用法律法规及第三方服务条款的行为。因用户自行导入、转换、编辑、保存、分享或使用内容产生的法律责任，由实际行为人依法承担。
             
-            3. 在线音乐功能（不维护）
-            在线音乐相关功能仅作为实验性、辅助性功能提供，依赖第三方公开网络接口或网络资源，不属于本软件自建音乐服务。该功能不维护，不保证可用性、完整性、准确性、音质、持续性或长期兼容性；第三方接口变更、失效、限流、地区限制或内容下架均可能导致搜索或播放失败。请遵守相关第三方平台的服务条款和版权规则。
-            
-            4. 联网封面与第三方信息
+            3. 联网封面与第三方信息
             本地音乐缺少封面时，软件可能根据歌曲名称、歌手等信息联网查询第三方公开数据以补充封面。搜索结果可能存在匹配错误、缺失或第三方权利限制。用户应自行判断其使用是否合法、适当。
             
-            5. 本地文件操作风险
+            4. 本地文件操作风险
             音频转换、剪辑、批量处理、替换源文件、删除源文件及清理缓存等操作可能改变或删除本地数据。请在重要操作前自行备份。软件会尽合理努力降低异常风险，但本声明不排除或限制依法不能排除或限制的责任。
             
-            6. 第三方组件与服务
+            5. 第三方组件与服务
             软件可能调用第三方开源组件、系统能力、网站、接口或应用。相关第三方服务由其各自运营者负责，其可用性、内容及规则不受本软件控制。第三方组件的许可与声明以项目内 THIRD_PARTY_NOTICES、相应许可证及上游项目说明为准。
             
-            7. 无担保与责任边界
+            6. 无担保与责任边界
             本软件按现状提供。除法律另有强制规定外，不对特定用途适用性、第三方服务持续可用性或用户设备、文件、网络环境造成的间接损失作额外保证。任何免责声明均不应被解释为排除或限制法律规定不得排除或限制的消费者权利、人身损害责任或其他法定责任。
             
-            8. 协议更新
+            7. 协议更新
             如本声明因功能或法律要求发生实质变化，软件可提高协议版本并再次要求确认。继续使用前请重新阅读。
             
             如你不同意以上内容，请选择“不同意并退出”并停止使用本软件。
@@ -261,7 +281,19 @@ class MainActivity : Activity() {
         refreshAllFilesAccessUi()
     }
 
-    private fun buildUi() {
+    override fun onSaveInstanceState(outState: Bundle) {
+        outState.putInt("selected_main_page", selectedMainPage)
+        saveLocalMusicState(outState)
+        super.onSaveInstanceState(outState)
+    }
+
+    @Suppress("DEPRECATION")
+    override fun onBackPressed() {
+        if (selectedMainPage == 0 && handleLocalMusicBack()) return
+        super.onBackPressed()
+    }
+
+    private fun buildUi(initialPage: Int) {
         val screen = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(UiKit.BG)
@@ -270,8 +302,14 @@ class MainActivity : Activity() {
         screen.setOnApplyWindowInsetsListener { view, insets ->
             @Suppress("DEPRECATION")
             val topInset = insets.systemWindowInsetTop
-            if (view.paddingTop != topInset) {
-                view.setPadding(view.paddingLeft, topInset, view.paddingRight, view.paddingBottom)
+            val bottomInset = if (Build.VERSION.SDK_INT >= 30) {
+                insets.getInsets(android.view.WindowInsets.Type.navigationBars()).bottom
+            } else {
+                @Suppress("DEPRECATION")
+                insets.systemWindowInsetBottom
+            }
+            if (view.paddingTop != topInset || view.paddingBottom != bottomInset) {
+                view.setPadding(view.paddingLeft, topInset, view.paddingRight, bottomInset)
             }
             insets
         }
@@ -288,10 +326,9 @@ class MainActivity : Activity() {
 
         val homePage = buildHomePage()
         val editorPage = buildEditorPage()
-        val onlinePage = buildOnlineMusicPage()
         val batchPage = buildBatchPage()
         val aboutPage = buildAboutPage()
-        val pages = listOf<View>(homePage, editorPage, onlinePage, batchPage, aboutPage)
+        val pages = listOf<View>(homePage, editorPage, batchPage, aboutPage)
         pages.forEach { pageHost.addView(it, FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.MATCH_PARENT,
             FrameLayout.LayoutParams.MATCH_PARENT
@@ -336,17 +373,15 @@ class MainActivity : Activity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
             setPadding(UiKit.dp(this@MainActivity, 10), UiKit.dp(this@MainActivity, 8), UiKit.dp(this@MainActivity, 10), UiKit.dp(this@MainActivity, 10))
-            background = UiKit.rounded(UiKit.SURFACE, 28, this@MainActivity)
-            elevation = UiKit.dp(this@MainActivity, if (ThemePreferences.isDark(this@MainActivity)) 2 else 4).toFloat()
+            background = UiKit.rounded(UiKit.SURFACE, 0, this@MainActivity, UiKit.BORDER, 1)
         }
-        UiKit.margins(navigation, 12, 4, 12, 12)
+        UiKit.margins(navigation, 0, 3, 0, 0)
 
-        val homeNav = UiKit.navItem(this, "⌂", "首页")
-        val editorNav = UiKit.navItem(this, "✂", "编辑")
-        val onlineNav = UiKit.navItem(this, "♫", "在线音乐")
-        val batchNav = UiKit.navItem(this, "≋", "转码")
-        val aboutNav = UiKit.navItem(this, "⚙", "设置")
-        val navItems = listOf(homeNav, editorNav, onlineNav, batchNav, aboutNav)
+        val homeNav = UiKit.navItem(this, "music", "本地音乐")
+        val editorNav = UiKit.navItem(this, "edit", "编辑")
+        val batchNav = UiKit.navItem(this, "convert", "转码")
+        val aboutNav = UiKit.navItem(this, "settings", "设置")
+        val navItems = listOf(homeNav, editorNav, batchNav, aboutNav)
         navItems.forEachIndexed { index, item ->
             navigation.addView(item, LinearLayout.LayoutParams(0, UiKit.dp(this, 58), 1f).apply {
                 if (index > 0) leftMargin = UiKit.dp(this@MainActivity, 2)
@@ -355,15 +390,14 @@ class MainActivity : Activity() {
         screen.addView(navigation)
 
         fun selectPage(index: Int) {
+            if (index != 0 && selectedMainPage == 0) hideLocalMusicSearchKeyboard()
+            selectedMainPage = index
             pages.forEachIndexed { i, view -> view.visibility = if (i == index) View.VISIBLE else View.GONE }
-            navItems.forEachIndexed { i, item -> UiKit.setNavSelected(item, i == index) }
+            navItems.forEachIndexed { i, item -> UiKit.setNavSelected(item, i == index.coerceAtMost(3)) }
         }
-        homeNav.setOnClickListener { selectPage(0) }
-        editorNav.setOnClickListener { selectPage(1) }
-        onlineNav.setOnClickListener { selectPage(2) }
-        batchNav.setOnClickListener { selectPage(3) }
-        aboutNav.setOnClickListener { selectPage(4) }
-        selectPage(0)
+        selectMainPage = ::selectPage
+        navItems.forEachIndexed { index, item -> item.setOnClickListener { selectPage(index) } }
+        selectPage(initialPage.coerceIn(pages.indices))
 
         setContentView(screen)
     }
@@ -382,51 +416,42 @@ class MainActivity : Activity() {
         return scroll to root
     }
 
-    private fun buildHomePage(): ScrollView {
+    private fun buildHomePage(): FrameLayout {
         val (scroll, root) = pageRoot()
+        val container = FrameLayout(this)
+        localMusicContainer = container
+        localMusicHome = scroll
+        container.addView(scroll, FrameLayout.LayoutParams(-1, -1))
 
         val header = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(
-                UiKit.dp(this@MainActivity, 8),
-                UiKit.dp(this@MainActivity, 6),
-                UiKit.dp(this@MainActivity, 8),
-                0
-            )
-            addView(LinearLayout(this@MainActivity).apply {
-                orientation = LinearLayout.HORIZONTAL
-                gravity = Gravity.CENTER_VERTICAL
-                addView(UiKit.text(this@MainActivity, "本地音乐", 34f, UiKit.TEXT, true))
-                addView(
-                    UiKit.badge(this@MainActivity, "正式版").apply {
-                        contentDescription = "正式版"
-                    },
-                    LinearLayout.LayoutParams(
-                        LinearLayout.LayoutParams.WRAP_CONTENT,
-                        LinearLayout.LayoutParams.WRAP_CONTENT
-                    ).apply {
-                        marginStart = UiKit.dp(this@MainActivity, 10)
-                    }
-                )
-            })
-            addView(
-                UiKit.text(
-                    this@MainActivity,
-                    "浏览设备中的音乐 · 点击播放或加入当前播放列表",
-                    12.5f,
-                    UiKit.TEXT_3
-                ).apply {
-                    setPadding(0, UiKit.dp(this@MainActivity, 6), 0, 0)
-                }
-            )
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
         }
+        header.addView(
+            UiKit.text(this, "本地音乐", 22f, UiKit.TEXT, true),
+            LinearLayout.LayoutParams(0, -2, 1f)
+        )
+        header.addView(UiKit.badge(this, "正式版"))
         root.addView(header)
-
-        root.addView(UiKit.spacer(this, 18))
-        val actionCard = UiKit.groupCard(this)
-        val refresh = UiKit.groupButton(this, "↻", "刷新本地音乐")
-        actionCard.addView(refresh)
+        root.addView(UiKit.spacer(this, 16))
+        val actionCard = UiKit.card(this, 22).apply {
+            background = UiKit.rounded(UiKit.primaryContainer(context), 22, context)
+            orientation = LinearLayout.VERTICAL
+            setPadding(UiKit.dp(context, 16), UiKit.dp(context, 16), UiKit.dp(context, 16), UiKit.dp(context, 12))
+        }
+        actionCard.addView(UiKit.text(this, "你的本地音乐", 25f, UiKit.onPrimaryContainer(this), true))
+        actionCard.addView(UiKit.spacer(this, 5))
+        actionCard.addView(UiKit.text(this, "浏览、播放和管理手机里的音频。", 12.5f, UiKit.onPrimaryContainer(this)))
+        actionCard.addView(UiKit.spacer(this, 12))
+        actionCard.addView(UiKit.wideButton(this, "＋", "添加音乐文件", primary = true).apply {
+            setOnClickListener { pickLocalMusicDocuments() }
+        })
         root.addView(actionCard)
+        root.addView(UiKit.spacer(this, 12))
+        root.addView(UiKit.wideButton(this, "⌕", "搜索本地音乐").apply {
+            contentDescription = "搜索本地音乐"
+            setOnClickListener { openLocalMusicSearch() }
+        })
 
         root.addView(UiKit.spacer(this, 18))
         val directoryHeader = LinearLayout(this).apply {
@@ -455,9 +480,15 @@ class MainActivity : Activity() {
                 marginStart = UiKit.dp(this@MainActivity, 10)
             }
         )
+        val refresh = UiKit.text(this, "↻", 21f, UiKit.ACCENT_2, true).apply {
+            gravity = Gravity.CENTER
+            contentDescription = "刷新本地音乐"
+        }
+        directoryHeader.addView(refresh, LinearLayout.LayoutParams(UiKit.dp(this, 48), UiKit.dp(this, 48)))
+        root.addView(UiKit.sectionLabel(this, "音乐目录"))
         root.addView(directoryHeader)
 
-        root.addView(UiKit.spacer(this, 10))
+        root.addView(UiKit.spacer(this, 6))
         localMusicDirectoryTabs = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -482,6 +513,8 @@ class MainActivity : Activity() {
         )
 
         root.addView(UiKit.spacer(this, 10))
+        root.addView(UiKit.sectionLabel(this, "音乐列表"))
+        root.addView(UiKit.spacer(this, 8))
         localMusicHost = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
         }
@@ -495,10 +528,276 @@ class MainActivity : Activity() {
                 appendLocalMusicPage()
             }
         }
-        return scroll
+        return container
+    }
+
+    private fun openLocalMusicSearch(restored: Bundle? = null) {
+        val container = localMusicContainer ?: return
+        localMusicHome?.visibility = View.INVISIBLE
+        localMusicSearchPage?.let {
+            it.visibility = View.VISIBLE
+            it.bringToFront()
+            updateLocalMusicSearch()
+            return
+        }
+
+        val column = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(UiKit.BG)
+            setPadding(UiKit.dp(context, 18), UiKit.dp(context, 12), UiKit.dp(context, 18), 0)
+        }
+        localMusicSearchPage = column
+        container.addView(column, FrameLayout.LayoutParams(-1, -1))
+
+        val toolbar = LinearLayout(this).apply {
+            gravity = Gravity.CENTER_VERTICAL
+            orientation = LinearLayout.HORIZONTAL
+        }
+        val back = UiKit.wideButton(this, "‹", "返回").apply {
+            contentDescription = "返回本地音乐列表"
+            setOnClickListener { handleLocalMusicBack() }
+        }
+        toolbar.addView(back, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, UiKit.dp(this, 48)))
+        toolbar.addView(UiKit.text(this, "搜索本地音乐", 19f, UiKit.TEXT, true).apply {
+            setPadding(UiKit.dp(context, 12), 0, 0, 0)
+        })
+        column.addView(toolbar)
+        column.addView(UiKit.spacer(this, 10))
+
+        val field = EditText(this).apply {
+            setSingleLine()
+            hint = "输入歌名、文件名、歌手或专辑"
+            setHintTextColor(UiKit.TEXT_3)
+            setTextColor(UiKit.TEXT)
+            textSize = 15f
+            inputType = android.text.InputType.TYPE_CLASS_TEXT
+            imeOptions = android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH
+            setPadding(UiKit.dp(context, 14), 0, UiKit.dp(context, 14), 0)
+            background = UiKit.rounded(UiKit.SURFACE, 14, context, UiKit.ACCENT_2, 1)
+        }
+        localMusicSearchField = field
+        val inputRow = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
+        inputRow.addView(field, LinearLayout.LayoutParams(0, UiKit.dp(this, 48), 1f))
+        val clear = UiKit.text(this, "×", 22f, UiKit.ACCENT_2, true).apply {
+            gravity = Gravity.CENTER
+            contentDescription = "清除搜索文字"
+            setOnClickListener { field.text.clear() }
+        }
+        inputRow.addView(clear, LinearLayout.LayoutParams(UiKit.dp(this, 48), UiKit.dp(this, 48)))
+        column.addView(inputRow)
+        column.addView(UiKit.spacer(this, 8))
+
+        val scope = RadioGroup(this).apply { orientation = RadioGroup.HORIZONTAL }
+        val all = RadioButton(this).apply {
+            id = View.generateViewId()
+            text = "全部音乐"
+            minHeight = UiKit.dp(context, 48)
+            maxLines = 1
+            ellipsize = android.text.TextUtils.TruncateAt.END
+            setTextColor(UiKit.TEXT)
+        }
+        val currentDirectory = localMusicSelectedDirectory
+        val current = RadioButton(this).apply {
+            id = View.generateViewId()
+            text = "当前目录：${currentDirectory?.let(::directoryDisplayName).orEmpty()}"
+            minHeight = UiKit.dp(context, 48)
+            maxLines = 1
+            ellipsize = android.text.TextUtils.TruncateAt.END
+            setTextColor(UiKit.TEXT)
+            visibility = if (currentDirectory == null) View.GONE else View.VISIBLE
+        }
+        scope.addView(all, RadioGroup.LayoutParams(0, -2, 1f))
+        scope.addView(current, RadioGroup.LayoutParams(0, -2, 1.6f))
+        val restoreScope = currentDirectory != null && restored?.getBoolean("scope") == true
+        scope.check(if (restoreScope) current.id else all.id)
+        localMusicSearchDirectory = if (restoreScope) currentDirectory else null
+        scope.setOnCheckedChangeListener { _, checkedId ->
+            localMusicSearchDirectory = if (checkedId == current.id) currentDirectory else null
+            updateLocalMusicSearch()
+        }
+        scope.contentDescription = "搜索范围"
+        column.addView(scope)
+        localMusicSearchStatus = UiKit.text(this, "", 13f, UiKit.TEXT_3, true).apply {
+            accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
+        }
+        localMusicSearchStatus?.let(column::addView)
+        column.addView(UiKit.spacer(this, 10))
+
+        val results = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        val resultScroll = ScrollView(this).apply {
+            addView(results)
+        }
+        localMusicSearchList = results
+        localMusicSearchScroll = resultScroll
+        column.addView(resultScroll, LinearLayout.LayoutParams(-1, 0, 1f))
+        resultScroll.setOnScrollChangeListener { _, _, scrollY, _, _ ->
+            if (results.height - scrollY - resultScroll.height < UiKit.dp(this, 320)) {
+                appendLocalMusicSearchResults()
+            }
+        }
+        field.setText(restored?.getString("query").orEmpty())
+        field.setSelection(field.length())
+        field.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                field.removeCallbacks(localMusicSearchRefresh)
+                field.postDelayed(localMusicSearchRefresh, 120)
+            }
+            override fun afterTextChanged(s: Editable?) = Unit
+        })
+        field.setOnEditorActionListener { _, action, _ ->
+            if (action != android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH) {
+                false
+            } else {
+                field.removeCallbacks(localMusicSearchRefresh)
+                updateLocalMusicSearch()
+                hideLocalMusicSearchKeyboard()
+                true
+            }
+        }
+        updateLocalMusicSearch()
+        if (restored != null) return
+        field.requestFocus()
+        field.post {
+            if (localMusicSearchField === field && localMusicSearchPage?.isShown == true) {
+                (getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
+                    .showSoftInput(field, InputMethodManager.SHOW_IMPLICIT)
+            }
+        }
+    }
+
+    private fun hideLocalMusicSearchKeyboard() {
+        val field = localMusicSearchField ?: return
+        (getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
+            .hideSoftInputFromWindow(field.windowToken, 0)
+        field.clearFocus()
+    }
+
+    private fun handleLocalMusicBack(): Boolean {
+        val container = localMusicContainer ?: return false
+        val search = localMusicSearchPage ?: return false
+        if (!container.isShown || search.visibility != View.VISIBLE) return false
+        hideLocalMusicSearchKeyboard()
+        localMusicSearchField?.removeCallbacks(localMusicSearchRefresh)
+        container.removeView(search)
+        localMusicSearchPage = null
+        localMusicSearchField = null
+        localMusicSearchList = null
+        localMusicSearchScroll = null
+        localMusicSearchStatus = null
+        localMusicSearchDirectory = null
+        localMusicSearchMatches = emptyList()
+        localMusicSearchRenderedCount = 0
+        localMusicHome?.visibility = View.VISIBLE
+        return true
+    }
+
+    private fun updateLocalMusicSearch() {
+        val field = localMusicSearchField ?: return
+        val results = localMusicSearchList ?: return
+        val query = field.text.toString().trim()
+        val words = query.split(Regex("\\s+")).filter { it.isNotEmpty() }
+        val scope = localMusicSearchDirectory
+        localMusicSearchMatches = if (words.isEmpty()) emptyList() else allLocalMusicTracks.filter { track ->
+            val directory = localMusicDirectory(track)
+            (scope == null || directory == scope) && words.all { word ->
+                track.title.contains(word, ignoreCase = true) ||
+                    track.artist.contains(word, ignoreCase = true) ||
+                    track.album.contains(word, ignoreCase = true) ||
+                    localMusicFileNames[track.id].orEmpty().contains(word, ignoreCase = true)
+            }
+        }
+        localMusicSearchRenderedCount = 0
+        results.removeAllViews()
+        localMusicSearchScroll?.scrollTo(0, 0)
+        localMusicSearchStatus?.text = when {
+            query.isEmpty() -> "输入关键词搜索本地音乐"
+            localMusicSearchMatches.isEmpty() -> "没有找到匹配的音乐，可更换关键词或搜索范围"
+            else -> "搜索结果 · ${localMusicSearchMatches.size} 首"
+        }
+        appendLocalMusicSearchResults()
+    }
+
+    private fun appendLocalMusicSearchResults() {
+        val host = localMusicSearchList ?: return
+        val from = localMusicSearchRenderedCount
+        val to = minOf(from + localMusicPageSize, localMusicSearchMatches.size)
+        localMusicSearchRenderedCount = to
+        for (index in from until to) {
+            if (index > 0) host.addView(UiKit.spacer(this, 8))
+            host.addView(buildLocalMusicRow(localMusicSearchMatches[index], showDirectory = true))
+        }
+    }
+
+    private fun pickLocalMusicDocuments() {
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "audio/*"
+            putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
+        }
+        try {
+            startActivityForResult(intent, localMusicPickCode)
+        } catch (_: ActivityNotFoundException) {
+            toast("找不到可用的文件选择器")
+        }
+    }
+
+    private fun importedLocalMusicPrefs() = getSharedPreferences("imported_local_music", Context.MODE_PRIVATE)
+
+    private fun loadImportedLocalMusic() {
+        val uris = importedLocalMusicPrefs().getStringSet("documents", emptySet()).orEmpty()
+        importedLocalMusic = uris.mapNotNull { describeLocalMusicDocument(Uri.parse(it)) }
+    }
+
+    private fun describeLocalMusicDocument(uri: Uri): Track? {
+        if (uri.scheme != android.content.ContentResolver.SCHEME_CONTENT) return null
+        val label = runCatching {
+            contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use {
+                if (it.moveToFirst()) it.getString(0) else null
+            }
+        }.getOrNull()?.takeIf { it.isNotBlank() } ?: return null
+        return Track(
+            id = "document:$uri", title = label, artist = "本地文件", album = "",
+            artwork = "media-thumb:$uri", streamUrl = uri.toString(), source = "local"
+        )
+    }
+
+    private fun addLocalMusicDocuments(data: Intent) {
+        val selection = buildList {
+            data.data?.let { add(it) }
+            data.clipData?.let { clip ->
+                for (index in 0 until clip.itemCount) clip.getItemAt(index).uri?.let { add(it) }
+            }
+        }.distinct()
+        val remembered = importedLocalMusicPrefs()
+            .getStringSet("documents", emptySet()).orEmpty().toMutableSet()
+        val previouslyAdded = remembered.size
+        val known = importedLocalMusic.map { it.streamUrl }.toSet()
+        val newTracks = selection.mapNotNull { uri ->
+            if (uri.toString() in known) return@mapNotNull null
+            val track = describeLocalMusicDocument(uri) ?: return@mapNotNull null
+            runCatching {
+                contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }.onSuccess {
+                remembered.add(uri.toString())
+            }
+            track
+        }
+        if (newTracks.isEmpty()) {
+            toast("未添加新文件，文件可能已存在或无法读取")
+            return
+        }
+        importedLocalMusic = importedLocalMusic + newTracks
+        importedLocalMusicPrefs().edit().putStringSet("documents", remembered).apply()
+        renderLocalMusic()
+        selectLocalMusicDirectory(IMPORTED_MUSIC_DIRECTORY)
+        val temporaryCount = newTracks.size - (remembered.size - previouslyAdded)
+        toast(if (temporaryCount > 0) "已添加 ${newTracks.size} 首，其中 $temporaryCount 首仅本次可用" else "已添加 ${newTracks.size} 首")
     }
 
     private fun ensureLocalMusicPermissionAndLoad() {
+        loadImportedLocalMusic()
         val permission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             Manifest.permission.READ_MEDIA_AUDIO
         } else {
@@ -508,7 +807,8 @@ class MainActivity : Activity() {
             // 已经有缓存时直接恢复，不再每次启动都扫描 MediaStore。
             restoreLocalMusicCacheOrScan()
         } else {
-            localMusicStatus?.text = "需要音乐读取权限才能列出本地歌曲"
+            renderLocalMusic()
+            localMusicStatus?.text = "授权后可扫描本地音乐，也可手动添加文件"
             requestPermissions(arrayOf(permission), 1501)
         }
     }
@@ -541,11 +841,12 @@ class MainActivity : Activity() {
             val restored = runCatching {
                 val array = JSONArray(cache.readText())
                 val restoredDirectories = LinkedHashMap<String, String>()
+                val restoredFileNames = LinkedHashMap<String, String>()
                 val tracks = ArrayList<Track>(array.length()).apply {
                     for (i in 0 until array.length()) {
                         val item = array.getJSONObject(i)
-                        if (!item.has("directory")) {
-                            throw IllegalStateException("旧版缓存缺少目录信息")
+                        if (!item.has("directory") || !item.has("fileName")) {
+                            throw IllegalStateException("旧版缓存缺少目录或文件名信息")
                         }
                         val track = Track(
                                 id = item.optString("id"),
@@ -558,11 +859,12 @@ class MainActivity : Activity() {
                                 source = "local"
                             )
                         add(track)
+                        restoredFileNames[track.id] = item.optString("fileName")
                         restoredDirectories[track.id] =
                             normalizeLocalMusicDirectory(item.optString("directory"))
                     }
                 }
-                tracks to restoredDirectories
+                Triple(tracks, restoredDirectories, restoredFileNames)
             }.getOrNull()
 
             if (restored == null) {
@@ -570,13 +872,18 @@ class MainActivity : Activity() {
                 runOnUiThread { loadLocalMusic() }
                 return@Thread
             }
-            localMusicTracks = restored.first
-            localMusicDirectories = restored.second
-            runOnUiThread { renderLocalMusic() }
+            runOnUiThread {
+                localMusicTracks = restored.first
+                localMusicDirectories = restored.second
+                localMusicFileNames = restored.third
+                renderLocalMusic()
+            }
         }.start()
     }
 
     private fun saveLocalMusicCache(songs: List<Track>) {
+        val directories = localMusicDirectories
+        val names = localMusicFileNames
         Thread {
             runCatching {
                 val array = JSONArray()
@@ -589,7 +896,8 @@ class MainActivity : Activity() {
                             put("album", track.album)
                             put("artwork", track.artwork ?: "")
                             put("streamUrl", track.streamUrl)
-                            put("directory", localMusicDirectories[track.id] ?: ROOT_MUSIC_DIRECTORY)
+                            put("directory", directories[track.id] ?: ROOT_MUSIC_DIRECTORY)
+                            put("fileName", names[track.id].orEmpty())
                         }
                     )
                 }
@@ -607,12 +915,14 @@ class MainActivity : Activity() {
         Thread {
             val songs = mutableListOf<Track>()
             val directories = LinkedHashMap<String, String>()
+            val names = LinkedHashMap<String, String>()
             val uri = MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
             val projection = arrayOf(
                 MediaStore.Audio.Media._ID,
                 MediaStore.Audio.Media.TITLE,
                 MediaStore.Audio.Media.ARTIST,
                 MediaStore.Audio.Media.ALBUM,
+                MediaStore.Audio.Media.DISPLAY_NAME,
                 MediaStore.Audio.Media.RELATIVE_PATH
             )
             val selection = "${MediaStore.Audio.Media.IS_MUSIC} != 0"
@@ -629,6 +939,7 @@ class MainActivity : Activity() {
                     val artistCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
                     val albumCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM)
                     val directoryCol = cursor.getColumnIndex(MediaStore.Audio.Media.RELATIVE_PATH)
+                    val displayNameCol = cursor.getColumnIndex(MediaStore.Audio.Media.DISPLAY_NAME)
                     while (cursor.moveToNext()) {
                         val id = cursor.getLong(idCol)
                         val contentUri = ContentUris.withAppendedId(uri, id)
@@ -647,6 +958,7 @@ class MainActivity : Activity() {
                             source = "local"
                         )
                         songs += track
+                        if (displayNameCol >= 0) names[track.id] = cursor.getString(displayNameCol).orEmpty()
                         directories[track.id] = normalizeLocalMusicDirectory(
                             if (directoryCol >= 0) cursor.getString(directoryCol) else null
                         )
@@ -654,14 +966,18 @@ class MainActivity : Activity() {
                 }
             }.onFailure {
                 runOnUiThread {
+                    renderLocalMusic()
                     localMusicStatus?.text = "读取本地音乐失败：${it.message ?: "未知错误"}"
                 }
                 return@Thread
             }
-            localMusicTracks = songs
-            localMusicDirectories = directories
-            saveLocalMusicCache(songs)
-            runOnUiThread { renderLocalMusic() }
+            runOnUiThread {
+                localMusicTracks = songs
+                localMusicDirectories = directories
+                localMusicFileNames = names
+                saveLocalMusicCache(songs)
+                renderLocalMusic()
+            }
         }.start()
     }
 
@@ -679,26 +995,55 @@ class MainActivity : Activity() {
         return directory.substringAfterLast('/').ifBlank { directory }
     }
 
-    private fun renderLocalMusic() {
-        localMusicDirectoryOrder = localMusicTracks
-            .map { localMusicDirectories[it.id] ?: ROOT_MUSIC_DIRECTORY }
-            .distinct()
-            .sortedWith(Comparator { left, right ->
-                val leftCount = localMusicTracks.count {
-                    (localMusicDirectories[it.id] ?: ROOT_MUSIC_DIRECTORY) == left
-                }
-                val rightCount = localMusicTracks.count {
-                    (localMusicDirectories[it.id] ?: ROOT_MUSIC_DIRECTORY) == right
-                }
-                val countOrder = rightCount.compareTo(leftCount)
-                if (countOrder != 0) countOrder else left.compareTo(right, ignoreCase = true)
-            })
+    private fun localMusicDirectory(track: Track): String =
+        if (track.id.startsWith("document:")) IMPORTED_MUSIC_DIRECTORY
+        else localMusicDirectories[track.id] ?: ROOT_MUSIC_DIRECTORY
 
+    private fun renderLocalMusic() {
+        allLocalMusicTracks = localMusicTracks + importedLocalMusic
+        localMusicDirectoryOrder = allLocalMusicTracks.groupingBy(::localMusicDirectory).eachCount().entries
+            .sortedWith(compareByDescending<Map.Entry<String, Int>> { it.value }.thenBy { it.key.lowercase() })
+            .map { it.key }
+        val restored = savedLocalMusicState
+        if (restored != null) {
+            localMusicSelectedDirectory = restored.getString("directory")
+            savedLocalMusicState = null
+        }
         if (localMusicSelectedDirectory !in localMusicDirectoryOrder) {
             localMusicSelectedDirectory = null
         }
         renderLocalMusicDirectoryTabs()
         renderSelectedLocalMusicDirectory()
+        if (restored != null) {
+            val rendered = minOf(restored.getInt("home_rows"), localMusicVisibleTracks.size)
+            while (localMusicRenderedCount < rendered) appendLocalMusicPage()
+            localMusicHome?.let { scroll ->
+                scroll.addOnLayoutChangeListener(object : View.OnLayoutChangeListener {
+                    override fun onLayoutChange(view: View, left: Int, top: Int, right: Int, bottom: Int,
+                                                oldLeft: Int, oldTop: Int, oldRight: Int, oldBottom: Int) {
+                        if (bottom <= top) return
+                        view.removeOnLayoutChangeListener(this)
+                        scroll.scrollTo(0, restored.getInt("home_scroll"))
+                    }
+                })
+                scroll.requestLayout()
+            }
+            if (restored.getBoolean("search_open")) {
+                openLocalMusicSearch(restored)
+            }
+        }
+        if (localMusicSearchField != null && restored == null) updateLocalMusicSearch()
+    }
+
+    private fun saveLocalMusicState(outState: Bundle) {
+        outState.putBundle("local_music_ui", Bundle().apply {
+            putString("directory", localMusicSelectedDirectory)
+            putInt("home_scroll", localMusicHome?.scrollY ?: 0)
+            putInt("home_rows", localMusicRenderedCount)
+            putBoolean("search_open", localMusicSearchPage != null)
+            putString("query", localMusicSearchField?.text?.toString())
+            putBoolean("scope", localMusicSearchDirectory != null)
+        })
     }
 
     private fun renderLocalMusicDirectoryTabs() {
@@ -709,13 +1054,13 @@ class MainActivity : Activity() {
         pages.forEachIndexed { index, directory ->
             val selected = directory == localMusicSelectedDirectory
             val count = if (directory == null) {
-                localMusicTracks.size
+                allLocalMusicTracks.size
             } else {
-                localMusicTracks.count {
-                    (localMusicDirectories[it.id] ?: ROOT_MUSIC_DIRECTORY) == directory
+                allLocalMusicTracks.count {
+                    localMusicDirectory(it) == directory
                 }
             }
-            val label = if (directory == null) "全部" else directoryDisplayName(directory)
+            val label = if (directory == null) "全部音乐" else directoryDisplayName(directory)
             val tab = UiKit.text(
                 this,
                 "$label  $count",
@@ -768,17 +1113,17 @@ class MainActivity : Activity() {
         localMusicPageLoading = false
 
         localMusicVisibleTracks = localMusicSelectedDirectory?.let { selectedDirectory ->
-            localMusicTracks.filter {
-                (localMusicDirectories[it.id] ?: ROOT_MUSIC_DIRECTORY) == selectedDirectory
+            allLocalMusicTracks.filter {
+                localMusicDirectory(it) == selectedDirectory
             }
-        } ?: localMusicTracks
+        } ?: allLocalMusicTracks
 
         val directory = localMusicSelectedDirectory
         localMusicStatus?.text = when {
-            localMusicTracks.isEmpty() ->
+            allLocalMusicTracks.isEmpty() ->
                 "未发现本地音乐 · 点击刷新重新扫描"
             directory == null ->
-                "全部目录 · 共 ${localMusicTracks.size} 首 · 左右滑动查看目录标签，点击切换"
+                "全部目录 · 共 ${allLocalMusicTracks.size} 首 · 左右滑动查看目录标签，点击切换"
             else ->
                 "目录：$directory · ${localMusicVisibleTracks.size} 首 · 左右滑动查看目录标签，点击切换"
         }
@@ -815,339 +1160,101 @@ class MainActivity : Activity() {
         for (index in from until to) {
             val track = songs[index]
             if (index > 0) host.addView(UiKit.spacer(this, 8))
-            val card = UiKit.card(this, 20).apply {
-                setPadding(
-                    UiKit.dp(this@MainActivity, 14),
-                    UiKit.dp(this@MainActivity, 12),
-                    UiKit.dp(this@MainActivity, 10),
-                    UiKit.dp(this@MainActivity, 12)
-                )
-            }
-            val row = LinearLayout(this).apply {
-                orientation = LinearLayout.HORIZONTAL
-                gravity = Gravity.CENTER_VERTICAL
-            }
-            var displayTrack = track
-            val artworkView = ImageView(this).apply {
-                scaleType = ImageView.ScaleType.CENTER_CROP
-                setBackgroundColor(UiKit.SURFACE)
-            }
-            row.addView(
-                artworkView,
-                LinearLayout.LayoutParams(UiKit.dp(this, 48), UiKit.dp(this, 48)).apply {
-                    marginEnd = UiKit.dp(this@MainActivity, 12)
-                }
-            )
-            fun syncOnlineCover(forceRefresh: Boolean = false) {
-                OnlineCoverResolver.resolve(this, track.title, track.artist, forceRefresh) { coverUrl ->
-                    if (coverUrl.isNullOrBlank()) return@resolve
-                    displayTrack = track.copy(artwork = coverUrl)
-                    ImageLoader.load(coverUrl, artworkView)
-                    val pos = localMusicTracks.indexOfFirst { it.id == track.id }
-                    if (pos >= 0) {
-                        val updated = localMusicTracks.toMutableList()
-                        updated[pos] = displayTrack
-                        localMusicTracks = updated
-                        saveLocalMusicCache(updated)
-                    }
-                }
-            }
-
-            if (!track.artwork.isNullOrBlank()) {
-                ImageLoader.load(track.artwork, artworkView) { loaded ->
-                    if (!loaded && track.source == "local") {
-                        syncOnlineCover(forceRefresh = true)
-                    }
-                }
-            } else {
-                syncOnlineCover()
-            }
-            val textBox = LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL
-                addView(UiKit.text(this@MainActivity, track.title, 14.5f, UiKit.TEXT, true))
-                addView(
-                    UiKit.text(
-                        this@MainActivity,
-                        if (track.album.isBlank()) track.artist else "${track.artist} · ${track.album}",
-                        11.5f,
-                        UiKit.TEXT_3
-                    )
-                )
-            }
-            row.addView(textBox, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
-
-            val add = UiKit.text(this, "＋", 22f, UiKit.ACCENT_2, true).apply {
-                gravity = Gravity.CENTER
-                setOnClickListener {
-                    PlayerController.add(displayTrack, playNow = false)
-                    toast("已加入当前播放列表")
-                }
-            }
-            row.addView(add, LinearLayout.LayoutParams(UiKit.dp(this, 44), UiKit.dp(this, 44)))
-
-            val playNow = UiKit.text(this, "▶", 19f, UiKit.TEXT, true).apply {
-                gravity = Gravity.CENTER
-                setOnClickListener { PlayerController.add(displayTrack, playNow = true) }
-            }
-            row.addView(playNow, LinearLayout.LayoutParams(UiKit.dp(this, 44), UiKit.dp(this, 44)))
-            card.addView(row)
-            card.setOnClickListener { PlayerController.add(displayTrack, playNow = true) }
-            host.addView(card)
+            host.addView(buildLocalMusicRow(track))
         }
         localMusicRenderedCount = to
         localMusicPageLoading = false
     }
 
-private fun showSourceManagerDialog() {
-    val order = MusicSourceManager.sourceOrder(this).toMutableList()
-    val enabled = MusicSourceManager.enabledSources(this).toMutableSet()
-
-    val box = LinearLayout(this).apply {
-        orientation = LinearLayout.VERTICAL
-        setPadding(
-            UiKit.dp(this@MainActivity, 18),
-            UiKit.dp(this@MainActivity, 8),
-            UiKit.dp(this@MainActivity, 18),
-            UiKit.dp(this@MainActivity, 8)
+    private fun buildLocalMusicRow(track: Track, showDirectory: Boolean = false): View {
+        val card = UiKit.card(this, 20).apply {
+            setPadding(
+                UiKit.dp(this@MainActivity, 14),
+                UiKit.dp(this@MainActivity, 12),
+                UiKit.dp(this@MainActivity, 10),
+                UiKit.dp(this@MainActivity, 12)
+            )
+        }
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        var displayTrack = track
+        val artworkView = ImageView(this).apply {
+            scaleType = ImageView.ScaleType.CENTER_CROP
+            setBackgroundColor(UiKit.SURFACE)
+        }
+        row.addView(
+            artworkView,
+            LinearLayout.LayoutParams(UiKit.dp(this, 48), UiKit.dp(this, 48)).apply {
+                marginEnd = UiKit.dp(this@MainActivity, 12)
+            }
         )
-    }
-    val listHost = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-    box.addView(listHost)
-
-    fun renderRows() {
-        listHost.removeAllViews()
-        order.forEachIndexed { index, source ->
-            val row = LinearLayout(this).apply {
-                orientation = LinearLayout.HORIZONTAL
-                gravity = Gravity.CENTER_VERTICAL
-                setPadding(0, UiKit.dp(this@MainActivity, 6), 0, UiKit.dp(this@MainActivity, 6))
-            }
-
-            val check = CheckBox(this).apply {
-                text = "${index + 1}. ${source.label}"
-                isChecked = source in enabled
-                setTextColor(UiKit.TEXT)
-                setOnCheckedChangeListener { _, checked ->
-                    if (checked) enabled += source else enabled -= source
+        fun syncOnlineCover(forceRefresh: Boolean = false) {
+            if (showDirectory || track.id.startsWith("document:")) return
+            OnlineCoverResolver.resolve(this, track.title, track.artist, forceRefresh) { coverUrl ->
+                if (coverUrl.isNullOrBlank()) return@resolve
+                displayTrack = track.copy(artwork = coverUrl)
+                ImageLoader.load(coverUrl, artworkView)
+                val pos = localMusicTracks.indexOfFirst { it.id == track.id }
+                if (pos >= 0) {
+                    val updated = localMusicTracks.toMutableList()
+                    updated[pos] = displayTrack
+                    localMusicTracks = updated
+                    saveLocalMusicCache(updated)
                 }
-            }
-            row.addView(check, LinearLayout.LayoutParams(0, UiKit.dp(this, 46), 1f))
-
-            val up = UiKit.text(this, "↑", 16f, UiKit.TEXT_2, true).apply {
-                gravity = Gravity.CENTER
-                isEnabled = index > 0
-                alpha = if (isEnabled) 1f else 0.3f
-                setOnClickListener {
-                    if (index > 0) {
-                        val item = order.removeAt(index)
-                        order.add(index - 1, item)
-                        renderRows()
-                    }
-                }
-            }
-            row.addView(up, LinearLayout.LayoutParams(UiKit.dp(this, 34), UiKit.dp(this, 40)))
-
-            val down = UiKit.text(this, "↓", 16f, UiKit.TEXT_2, true).apply {
-                gravity = Gravity.CENTER
-                isEnabled = index < order.lastIndex
-                alpha = if (isEnabled) 1f else 0.3f
-                setOnClickListener {
-                    if (index < order.lastIndex) {
-                        val item = order.removeAt(index)
-                        order.add(index + 1, item)
-                        renderRows()
-                    }
-                }
-            }
-            row.addView(down, LinearLayout.LayoutParams(UiKit.dp(this, 34), UiKit.dp(this, 40)))
-
-            val health = UiKit.text(this, "测试", 11.5f, UiKit.ACCENT_2, true).apply {
-                gravity = Gravity.CENTER
-                background = UiKit.rounded(
-                    UiKit.primaryContainer(this@MainActivity),
-                    12,
-                    this@MainActivity
-                )
-                setOnClickListener {
-                    text = "…"
-                    isEnabled = false
-                    MusicSourceManager.healthCheck(source) { ok, message ->
-                        runOnUiThread {
-                            text = if (ok) "正常" else "失败"
-                            setTextColor(if (ok) UiKit.SUCCESS else Color.RED)
-                            isEnabled = true
-                            toast("${source.label}：$message")
-                        }
-                    }
-                }
-            }
-            row.addView(health, LinearLayout.LayoutParams(UiKit.dp(this, 58), UiKit.dp(this, 38)))
-            listHost.addView(row)
-        }
-    }
-
-    renderRows()
-
-    box.addView(
-        UiKit.text(
-            this,
-            "↑↓ 可调整播放优先级。搜索会并行请求所有已启用来源；同名歌曲合并后，播放按这里的顺序自动切源。",
-            11.5f,
-            UiKit.TEXT_3
-        ).apply {
-            setPadding(0, UiKit.dp(this@MainActivity, 10), 0, 0)
-            setLineSpacing(0f, 1.16f)
-        }
-    )
-
-    AlertDialog.Builder(this)
-        .setTitle("音源管理")
-        .setView(box)
-        .setNegativeButton("取消", null)
-        .setPositiveButton("保存") { _, _ ->
-            if (enabled.isEmpty()) {
-                toast("至少保留一个音源")
-            } else {
-                MusicSourceManager.setOrder(this, order)
-                MusicSourceManager.setEnabled(this, enabled)
-                toast("音源设置已保存")
             }
         }
-        .show()
-}
 
-private fun buildOnlineMusicPage(): ScrollView {
-    val (scroll, root) = pageRoot()
-
-    val header = LinearLayout(this).apply {
-        orientation = LinearLayout.HORIZONTAL
-        gravity = Gravity.CENTER_VERTICAL
-    }
-    header.addView(
-        LinearLayout(this).apply {
+        val artwork = if (showDirectory) {
+            track.artwork?.takeIf { it.startsWith("media-thumb:") }
+                ?: track.streamUrl.takeIf { it.startsWith("content://") }?.let { "media-thumb:$it" }
+        } else track.artwork
+        if (!artwork.isNullOrBlank()) {
+            ImageLoader.load(artwork, artworkView) { loaded ->
+                if (!loaded && track.source == "local") {
+                    syncOnlineCover(forceRefresh = true)
+                }
+            }
+        } else {
+            syncOnlineCover()
+        }
+        val textBox = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            addView(UiKit.text(this@MainActivity, "在线音乐", 31f, UiKit.TEXT, true))
-            addView(UiKit.text(this@MainActivity, "多音源聚合 · 自动切源 · 共用播放器 · 不维护", 12.5f, UiKit.TEXT_3))
-        },
-        LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-    )
-    val manage = UiKit.text(this, "音源管理", 12.5f, UiKit.ACCENT_2, true).apply {
-        gravity = Gravity.CENTER
-        background = UiKit.rounded(UiKit.primaryContainer(this@MainActivity), 16, this@MainActivity)
-        setOnClickListener { showSourceManagerDialog() }
-    }
-    header.addView(manage, LinearLayout.LayoutParams(UiKit.dp(this, 88), UiKit.dp(this, 42)))
-    root.addView(header)
-
-    root.addView(UiKit.spacer(this, 18))
-    val search = android.widget.EditText(this).apply {
-        hint = "搜索歌曲 / 歌手"
-        textSize = 16f
-        setTextColor(UiKit.TEXT)
-        setHintTextColor(UiKit.TEXT_3)
-        setSingleLine(true)
-        setPadding(UiKit.dp(this@MainActivity, 14), 0, UiKit.dp(this@MainActivity, 14), 0)
-        background = UiKit.rounded(UiKit.SURFACE, 18, this@MainActivity)
-    }
-    root.addView(search, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, UiKit.dp(this, 52)))
-    root.addView(UiKit.spacer(this, 10))
-
-    val searchButton = UiKit.wideButton(this, "⌕", "聚合搜索", true)
-    root.addView(searchButton)
-    root.addView(UiKit.spacer(this, 12))
-
-    val state = UiKit.text(
-        this,
-        "已启用：${MusicSourceManager.enabledSources(this).joinToString(" · ") { it.label }}",
-        12f,
-        UiKit.TEXT_3
-    )
-    root.addView(state)
-    root.addView(UiKit.spacer(this, 8))
-
-    val results = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-    root.addView(results)
-
-    fun doSearch() {
-        val keyword = search.text.toString().trim()
-        if (keyword.isBlank()) {
-            toast("请输入歌曲或歌手")
-            return
+            addView(UiKit.text(this@MainActivity, track.title, 14.5f, UiKit.TEXT, true))
+            addView(
+                UiKit.text(
+                    this@MainActivity,
+                    listOfNotNull(
+                        directoryDisplayName(localMusicDirectory(track)).takeIf { showDirectory },
+                        track.artist,
+                        track.album.takeIf { it.isNotBlank() }
+                    ).joinToString(" · "),
+                    11.5f,
+                    UiKit.TEXT_3
+                )
+            )
         }
-        state.text = "正在同时搜索多个音源…"
-        results.removeAllViews()
-        searchButton.isEnabled = false
+        row.addView(textBox, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
 
-        MusicSourceManager.searchAll(this, keyword) { result ->
-            runOnUiThread {
-                searchButton.isEnabled = true
-                result.onFailure { state.text = "搜索失败：${it.message}" }
-                result.onSuccess { songs ->
-                    state.text = "找到 ${songs.size} 项 · 同名多来源已合并，播放失败会自动切源"
-                    songs.forEach { song ->
-                        val row = LinearLayout(this).apply {
-                            orientation = LinearLayout.HORIZONTAL
-                            gravity = Gravity.CENTER_VERTICAL
-                            setPadding(0, UiKit.dp(this@MainActivity, 9), 0, UiKit.dp(this@MainActivity, 9))
-                        }
-                        val art = ImageView(this).apply {
-                            scaleType = ImageView.ScaleType.CENTER_CROP
-                            background = UiKit.rounded(UiKit.primaryContainer(this@MainActivity), 12, this@MainActivity)
-                        }
-                        row.addView(art, LinearLayout.LayoutParams(UiKit.dp(this, 54), UiKit.dp(this, 54)))
-                        ImageLoader.load(song.artwork, art)
-
-                        val meta = LinearLayout(this).apply {
-                            orientation = LinearLayout.VERTICAL
-                            setPadding(UiKit.dp(this@MainActivity, 10), 0, UiKit.dp(this@MainActivity, 8), 0)
-                            addView(UiKit.text(this@MainActivity, song.title, 14f, UiKit.TEXT, true))
-                            addView(UiKit.text(this@MainActivity, song.artist, 11.5f, UiKit.TEXT_3))
-                            addView(UiKit.text(this@MainActivity, "来源：${song.sourceLabels}", 10.5f, UiKit.ACCENT_2, true))
-                        }
-                        row.addView(meta, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
-
-                        val play = UiKit.text(this, "▶", 18f, UiKit.ACCENT_2, true).apply {
-                            gravity = Gravity.CENTER
-                            background = UiKit.rounded(UiKit.primaryContainer(this@MainActivity), 16, this@MainActivity)
-                        }
-                        row.addView(play, LinearLayout.LayoutParams(UiKit.dp(this, 48), UiKit.dp(this, 44)))
-                        play.setOnClickListener {
-                            play.isEnabled = false
-                            play.text = "…"
-                            MusicSourceManager.resolveBest(this, song) { resolved ->
-                                runOnUiThread {
-                                    play.isEnabled = true
-                                    play.text = "▶"
-                                    resolved.onSuccess {
-                                        PlayerController.add(it, true)
-                                        toast("正在播放 · ${it.source.uppercase()}")
-                                    }
-                                    resolved.onFailure { toast(it.message ?: "所有候选音源均播放失败") }
-                                }
-                            }
-                        }
-                        results.addView(row)
-                        results.addView(UiKit.groupDivider(this))
-                    }
-                }
+        val add = UiKit.text(this, "＋", 22f, UiKit.ACCENT_2, true).apply {
+            gravity = Gravity.CENTER
+            setOnClickListener {
+                PlayerController.add(displayTrack, playNow = false)
+                toast("已加入当前播放列表")
             }
         }
+        row.addView(add, LinearLayout.LayoutParams(UiKit.dp(this, 44), UiKit.dp(this, 44)))
+
+        val playNow = UiKit.text(this, "▶", 19f, UiKit.TEXT, true).apply {
+            gravity = Gravity.CENTER
+            setOnClickListener { PlayerController.add(displayTrack, playNow = true) }
+        }
+        row.addView(playNow, LinearLayout.LayoutParams(UiKit.dp(this, 44), UiKit.dp(this, 44)))
+        card.addView(row)
+        card.setOnClickListener { PlayerController.add(displayTrack, playNow = true) }
+        return card
     }
-
-    searchButton.setOnClickListener { doSearch() }
-    search.setOnEditorActionListener { _, _, _ -> doSearch(); true }
-
-    root.addView(UiKit.spacer(this, 18))
-    val note = UiKit.card(this, 20)
-    note.addView(UiKit.text(
-        this,
-        "⚠ 在线音乐功能不维护。在线音源具有时效性，失效、接口变动或无法播放属于第三方音源变化。APP 会把同名歌曲的不同来源合并，按优先级逐个尝试；解析请求带节流，避免短时间频繁访问。",
-        11.5f,
-        UiKit.TEXT_3
-    ))
-    root.addView(note)
-    return scroll
-}
 
 private fun buildEditorHubPage(): ScrollView {
     val (scroll, root) = pageRoot()
@@ -1284,230 +1391,238 @@ private fun buildEditorHubPage(): ScrollView {
         })
     }
 
-    private fun buildBatchPage(): ScrollView {
+    private fun buildBatchPage(): View {
         val (scroll, root) = pageRoot()
-
-        val header = LinearLayout(this).apply {
+        val context = this
+        val gap = UiKit.dp(this, 7)
+        val workspace = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(
-                UiKit.dp(this@MainActivity, 8),
-                UiKit.dp(this@MainActivity, 6),
-                UiKit.dp(this@MainActivity, 8),
-                0
-            )
-            addView(UiKit.text(this@MainActivity, "转码", 34f, UiKit.TEXT, true))
-            addView(
-                UiKit.text(
-                    this@MainActivity,
-                    "单文件转码 · 批量扫描 · 并行处理",
-                    12.5f,
-                    UiKit.TEXT_3
-                ).apply {
-                    setPadding(0, UiKit.dp(this@MainActivity, 6), 0, 0)
-                }
-            )
+            setBackgroundColor(UiKit.BG)
         }
-        root.addView(header)
+        workspace.addView(scroll, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
+        root.setPadding(root.paddingLeft, root.paddingTop, root.paddingRight, UiKit.dp(this, 16))
 
-        root.addView(UiKit.spacer(this, 20))
-        root.addView(UiKit.sectionLabel(this, "单文件转码"))
-
-        val singleCard = UiKit.card(this, 24)
-        selectedText = UiKit.text(
-            this,
-            "尚未选择文件\n选择一首音乐进行格式转换",
-            14f,
-            UiKit.TEXT
-        ).apply { setLineSpacing(0f, 1.18f) }
-        singleCard.addView(selectedText)
-
-        val chooseSingle = UiKit.wideButton(this, "+", "选择音乐文件", true)
-        UiKit.margins(chooseSingle, 0, 14, 0, 0)
-        singleCard.addView(chooseSingle)
-
-        val convertSingle = UiKit.wideButton(this, "⇄", "转换格式")
-        UiKit.margins(convertSingle, 0, 10, 0, 0)
-        singleCard.addView(convertSingle)
-
-        deleteAsk = CheckBox(this).apply {
-            text = "处理完成后询问源文件操作"
-            textSize = 13f
-            setTextColor(UiKit.TEXT_2)
-            isChecked = true
-            setPadding(0, UiKit.dp(this@MainActivity, 10), 0, 0)
+        fun section(label: String): LinearLayout = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            addView(UiKit.spacer(context, 16))
+            addView(UiKit.sectionLabel(context, label))
+            root.addView(this)
         }
-        singleCard.addView(deleteAsk)
-        root.addView(singleCard)
 
-        chooseSingle.setOnClickListener { chooseFile() }
-        convertSingle.setOnClickListener { showConvertDialog() }
-
-        root.addView(UiKit.spacer(this, 22))
-        root.addView(UiKit.sectionLabel(this, "批量扫描"))
-
-        val scanCard = UiKit.groupCard(this)
-        val scanButton = UiKit.groupButton(this, "⌕", "选择目录扫描")
-        scanCard.addView(scanButton)
-
-        fullStorageScanButton = UiKit.groupButton(
-            this,
-            "◎",
-            "全盘扫描 · 已授权"
-        ).apply {
-            visibility = if (hasAllFilesAccess()) View.VISIBLE else View.GONE
-        }
-        if (hasAllFilesAccess()) {
-            scanCard.addView(UiKit.groupDivider(this))
-        }
-        scanCard.addView(fullStorageScanButton)
-
-        ignoreFormatsButton = UiKit.groupButton(
-            this,
-            "⊘",
-            "扫描过滤 · ${IgnoredFormatPreferences.summary(this)}"
-        )
-        scanCard.addView(UiKit.groupDivider(this))
-        scanCard.addView(ignoreFormatsButton)
-        root.addView(scanCard)
-
-        root.addView(UiKit.spacer(this, 20))
-        root.addView(UiKit.sectionLabel(this, "任务状态"))
-
-        val batchCard = UiKit.card(this, 26).apply {
-            background = UiKit.rounded(
-                UiKit.primaryContainer(this@MainActivity),
-                26,
-                this@MainActivity
-            )
-        }
-        val batchHead = LinearLayout(this).apply {
+        fun optionRow(): LinearLayout = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
         }
-        val batchIcon = UiKit.text(
-            this,
-            "≋",
-            24f,
-            UiKit.onPrimaryContainer(this),
-            true
-        ).apply {
-            gravity = Gravity.CENTER
-            background = UiKit.rounded(UiKit.ACCENT_2, 16, this@MainActivity)
+
+        fun option(row: LinearLayout, label: String): TextView =
+            UiKit.text(context, label, 12f, UiKit.TEXT, true).apply {
+                gravity = Gravity.CENTER
+                minimumHeight = UiKit.dp(context, 48)
+                isClickable = true
+                isFocusable = true
+                row.addView(this, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
+                    if (row.childCount > 0) marginStart = gap
+                })
+            }
+
+        fun setOption(view: TextView, active: Boolean) {
+            view.isSelected = active
+            view.setTextColor(if (active) UiKit.onPrimaryContainer(context) else UiKit.TEXT)
+            view.background = UiKit.ripple(context, if (active) UiKit.primaryContainer(context) else UiKit.SURFACE_2, 12)
         }
-        batchHead.addView(
-            batchIcon,
-            LinearLayout.LayoutParams(
-                UiKit.dp(this, 50),
-                UiKit.dp(this, 50)
-            )
-        )
+
+        val titleRow = optionRow()
+        titleRow.addView(UiKit.text(this, "转码", 29f, UiKit.TEXT, true),
+            LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+        val history = UiKit.wideButton(this, "◷", "转换记录").apply {
+            textSize = 12f
+            minimumHeight = UiKit.dp(context, 48)
+            setOnClickListener { showHistory() }
+        }
+        titleRow.addView(history)
+        root.addView(titleRow)
+        root.addView(UiKit.text(this, "先确认文件，再选输出格式。", 13f, UiKit.TEXT_2).apply {
+            setPadding(0, UiKit.dp(context, 6), 0, UiKit.dp(context, 15))
+        })
+
+        val modes = optionRow().also { root.addView(it) }
+        val singleMode = option(modes, "单文件")
+        val batchMode = option(modes, "批量")
+
+        val singleSection = section("待转换文件")
+        val singleCard = UiKit.card(this, 17)
+        selectedText = UiKit.text(
+            this, "尚未选择文件", 14f, UiKit.TEXT
+        ).apply { setLineSpacing(0f, 1.15f) }
+        singleCard.addView(selectedText)
+        val chooseSingle = UiKit.wideButton(this, "+", "选择音乐文件").apply {
+            setOnClickListener { chooseFile() }
+        }
+        UiKit.margins(chooseSingle, 0, 10, 0, 0)
+        singleCard.addView(chooseSingle)
+        singleSection.addView(singleCard)
+
+        val batchSection = section("待转换文件")
+        val scanCard = UiKit.groupCard(this)
+        val scanButton = UiKit.groupButton(this, "⌕", "选择目录扫描").apply {
+            setOnClickListener { chooseScanFolder() }
+        }
+        scanCard.addView(scanButton)
+        fullStorageScanButton = UiKit.groupButton(this, "◎", "全盘扫描 · 已授权").apply {
+            visibility = if (hasAllFilesAccess()) View.VISIBLE else View.GONE
+            setOnClickListener { confirmFullStorageScan() }
+        }
+        scanCard.addView(fullStorageScanButton)
+        batchSection.addView(scanCard)
+        batchSection.addView(UiKit.spacer(this, 8))
+        val batchCard = UiKit.card(this, 17)
         batchText = UiKit.text(
-            this,
-            "尚未扫描目录\n选择目录后即可批量处理",
-            13.5f,
-            UiKit.onPrimaryContainer(this)
-        ).apply {
-            setLineSpacing(0f, 1.18f)
-            setPadding(UiKit.dp(this@MainActivity, 14), 0, 0, 0)
-        }
-        batchHead.addView(
-            batchText,
-            LinearLayout.LayoutParams(
-                0,
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                1f
-            )
-        )
-        batchCard.addView(batchHead)
-
-        batchConvertButton = UiKit.wideButton(
-            this,
-            "⇉",
-            "一键转换扫描结果",
-            true
-        ).apply {
+            this, "尚未扫描目录\n选择目录后即可批量处理", 13.5f, UiKit.TEXT
+        ).apply { setLineSpacing(0f, 1.18f) }
+        batchCard.addView(batchText)
+        batchPauseButton = UiKit.wideButton(this, "Ⅱ", "完成当前任务后暂停").apply {
             isEnabled = false
-            alpha = 0.45f
-        }
-        UiKit.margins(batchConvertButton, 0, 16, 0, 0)
-        batchCard.addView(batchConvertButton)
-
-        batchPauseButton = UiKit.wideButton(
-            this,
-            "Ⅱ",
-            "完成当前任务后暂停"
-        ).apply {
-            isEnabled = false
-            alpha = 0.45f
+            visibility = View.GONE
+            setOnClickListener {
+                val snapshot = BatchConversionService.snapshot()
+                val ok = if (snapshot.paused || snapshot.pausing) {
+                    BatchConversionService.requestResume(context)
+                } else {
+                    BatchConversionService.requestPause(context)
+                }
+                if (!ok) toast("当前没有可暂停或继续的批量任务")
+            }
         }
         UiKit.margins(batchPauseButton, 0, 10, 0, 0)
         batchCard.addView(batchPauseButton)
-        root.addView(batchCard)
+        batchSection.addView(batchCard)
 
-        root.addView(UiKit.spacer(this, 18))
-        val tip = UiKit.card(this, 22)
-        tip.addView(UiKit.text(this, "扫描说明", 14f, UiKit.TEXT, true))
-        tip.addView(
-            UiKit.text(
-                this,
-                "默认使用 SAF 选择目录。授权“所有文件访问”后会额外显示全盘扫描，由用户主动选择是否扫描全部共享存储。扫描过滤规则始终生效，并自动跳过 Music/MusicConverter 输出目录。",
-                11.5f,
-                UiKit.TEXT_3
-            ).apply {
-                setPadding(0, UiKit.dp(this@MainActivity, 8), 0, 0)
-                setLineSpacing(0f, 1.18f)
-            }
-        )
-        root.addView(tip)
-
-        scanButton.setOnClickListener { chooseScanFolder() }
-        fullStorageScanButton.setOnClickListener { confirmFullStorageScan() }
-        ignoreFormatsButton.setOnClickListener { showIgnoredFormatsDialog() }
-        batchConvertButton.setOnClickListener { showBatchConvertDialog() }
-        batchPauseButton.setOnClickListener {
-            val snapshot = BatchConversionService.snapshot()
-            val ok = if (snapshot.paused || snapshot.pausing) {
-                BatchConversionService.requestResume(this)
-            } else {
-                BatchConversionService.requestPause(this)
-            }
-            if (!ok) toast("当前没有可暂停或继续的批量任务")
+        val formatSection = section("输出格式")
+        val formats = optionRow().also { formatSection.addView(it) }
+        val commonFormats = listOf(AudioOutputFormat.MP3, AudioOutputFormat.FLAC, AudioOutputFormat.WAV)
+        val formatOptions = commonFormats.map { it to option(formats, it.label) }
+        val moreFormats = AudioOutputFormat.values().filterNot { it in commonFormats }
+        val more = option(formats, "更多")
+        var target = AudioOutputFormat.MP3
+        fun setTarget(format: AudioOutputFormat) {
+            target = format
+            formatOptions.forEach { (value, view) -> setOption(view, value == target) }
+            val extraSelected = target in moreFormats
+            setOption(more, extraSelected)
+            more.text = if (extraSelected) target.extension.uppercase(java.util.Locale.ROOT) else "更多"
+            more.contentDescription = if (extraSelected) "更多格式，已选择 ${target.label}" else "更多格式"
         }
-        return scroll
+        formatOptions.forEach { (value, view) ->
+            view.setOnClickListener { setTarget(value) }
+        }
+        more.setOnClickListener {
+            appDialogBuilder().setTitle("更多输出格式")
+                .setItems(moreFormats.map { it.label }.toTypedArray()) { _, index ->
+                    setTarget(moreFormats[index])
+                }
+                .show()
+        }
+        setTarget(AudioOutputFormat.MP3)
+
+        root.addView(UiKit.spacer(this, 12))
+        val outputCard = UiKit.groupCard(this)
+        val outputInfo = UiKit.text(this, "", 13f, UiKit.TEXT_2).apply {
+            setPadding(UiKit.dp(context, 16), UiKit.dp(context, 15), UiKit.dp(context, 16), UiKit.dp(context, 15))
+        }
+        outputCard.addView(outputInfo)
+        val advancedToggle = UiKit.groupButton(this, "⌄", "高级选项")
+        outputCard.addView(advancedToggle)
+        val advancedContent = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            visibility = View.GONE
+        }
+        val singleAdvanced = UiKit.text(
+            this, "转换完成后可另存为、保存到默认位置，或选择替换源文件。", 12f, UiKit.TEXT_2
+        ).apply {
+            setPadding(UiKit.dp(context, 16), 0, UiKit.dp(context, 16), UiKit.dp(context, 15))
+        }
+        advancedContent.addView(singleAdvanced)
+        val batchAdvanced = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        ignoreFormatsButton = UiKit.groupButton(this, "⊘", "扫描过滤 · ${IgnoredFormatPreferences.summary(this)}").apply {
+            setOnClickListener { showIgnoredFormatsDialog() }
+        }
+        batchAdvanced.addView(ignoreFormatsButton)
+        batchAdvanced.addView(UiKit.text(
+            this,
+            "扫描自动跳过输出目录。并行任务数及源文件置换可在确认转换时调整。",
+            12f,
+            UiKit.TEXT_2
+        ).apply {
+            setPadding(UiKit.dp(context, 16), 0, UiKit.dp(context, 16), UiKit.dp(context, 15))
+        })
+        advancedContent.addView(batchAdvanced)
+        outputCard.addView(advancedContent)
+        root.addView(outputCard)
+        advancedToggle.setOnClickListener {
+            val expand = advancedContent.visibility != View.VISIBLE
+            advancedContent.visibility = if (expand) View.VISIBLE else View.GONE
+            advancedToggle.text = if (expand) "⌃   收起高级选项" else "⌄   高级选项"
+        }
+
+        val footer = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(
+                UiKit.dp(context, 18), UiKit.dp(context, 3),
+                UiKit.dp(context, 18), UiKit.dp(context, 4)
+            )
+        }
+        val convertSingle = UiKit.wideButton(this, "⇄", "开始转换", true).apply {
+            gravity = Gravity.CENTER
+            setOnClickListener {
+                val item = selected
+                if (item == null) toast("请先选择音乐文件")
+                else runConversion(item, target)
+            }
+        }
+        footer.addView(convertSingle)
+        batchConvertButton = UiKit.wideButton(this, "⇉", "开始批量转换", true).apply {
+            gravity = Gravity.CENTER
+            isEnabled = false
+            alpha = 0.45f
+            setOnClickListener { showBatchConvertDialog(target) }
+        }
+        footer.addView(batchConvertButton)
+        workspace.addView(footer)
+
+        fun setBatchMode(isBatch: Boolean) {
+            setOption(singleMode, !isBatch)
+            setOption(batchMode, isBatch)
+            singleSection.visibility = if (isBatch) View.GONE else View.VISIBLE
+            batchSection.visibility = if (isBatch) View.VISIBLE else View.GONE
+            singleAdvanced.visibility = if (isBatch) View.GONE else View.VISIBLE
+            batchAdvanced.visibility = if (isBatch) View.VISIBLE else View.GONE
+            convertSingle.visibility = if (isBatch) View.GONE else View.VISIBLE
+            batchConvertButton.visibility = if (isBatch) View.VISIBLE else View.GONE
+            outputInfo.text = if (isBatch) {
+                "默认保存：Music/MusicConverter"
+            } else {
+                "保存位置：转换完成后选择"
+            }
+        }
+        singleMode.setOnClickListener { setBatchMode(false) }
+        batchMode.setOnClickListener { setBatchMode(true) }
+        setBatchMode(BatchConversionService.snapshot().running)
+        return workspace
     }
 
     private fun buildAboutPage(): ScrollView {
         val (scroll, root) = pageRoot()
 
-        val header = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(
-                UiKit.dp(this@MainActivity, 8),
-                UiKit.dp(this@MainActivity, 6),
-                UiKit.dp(this@MainActivity, 8),
-                0
-            )
-            addView(UiKit.text(this@MainActivity, "设置", 34f, UiKit.TEXT, true))
-            addView(
-                UiKit.text(
-                    this@MainActivity,
-                    "界面 · 系统工具 · 存储 · 更新",
-                    12.5f,
-                    UiKit.TEXT_3
-                ).apply { setPadding(0, UiKit.dp(this@MainActivity, 6), 0, 0) }
-            )
-        }
-        root.addView(header)
-
-        root.addView(UiKit.spacer(this, 18))
-        root.addView(UiKit.sectionLabel(this, "界面"))
+        root.addView(UiKit.sectionTitle(this, "设置", "管理外观、存储、更新和应用选项"))
+        root.addView(UiKit.spacer(this, 14))
+        root.addView(UiKit.sectionLabel(this, "偏好设置"))
         val appearanceCard = UiKit.groupCard(this)
-        val themeButton = UiKit.groupButton(
-            this,
-            if (ThemePreferences.isDark(this)) "☾" else "☀",
-            "主题模式 · ${ThemePreferences.label(this)}"
-        )
+        val themeButton = UiKit.groupRow(this, "◐", "外观", ThemePreferences.label(this), "更改 ›")
         appearanceCard.addView(themeButton)
+        appearanceCard.addView(UiKit.groupDivider(this))
+        val historyButton = UiKit.groupRow(this, "◷", "转换 / 剪辑历史", "查看此前的本地处理结果", "查看 ›")
+        historyButton.setOnClickListener { showHistory() }
+        appearanceCard.addView(historyButton)
         appearanceCard.addView(UiKit.groupDivider(this))
         val miniPlayerSetting = CheckBox(this).apply {
             text = "底部播放器 · 默认显示"
@@ -1527,11 +1642,7 @@ private fun buildEditorHubPage(): ScrollView {
         }
         appearanceCard.addView(miniPlayerSetting)
         root.addView(appearanceCard)
-        themeButton.setOnClickListener {
-            ThemePreferences.toggle(this)
-            UiKit.applyTheme(this)
-            recreate()
-        }
+        themeButton.setOnClickListener { showAppearanceDialog() }
 
         root.addView(UiKit.spacer(this, 18))
         root.addView(UiKit.sectionLabel(this, "系统与工具"))
@@ -1545,9 +1656,6 @@ private fun buildEditorHubPage(): ScrollView {
         val appScanButton = UiKit.groupButton(this, "⌁", "扫描已安装音乐 APP")
         toolsCard.addView(appScanButton)
         toolsCard.addView(UiKit.groupDivider(this))
-        val historyButton = UiKit.groupButton(this, "◷", "转换 / 剪辑历史")
-        toolsCard.addView(historyButton)
-        toolsCard.addView(UiKit.groupDivider(this))
         val diagnosticsButton = UiKit.groupButton(this, "✓", "FFmpeg 运行检测")
         toolsCard.addView(diagnosticsButton)
         root.addView(toolsCard)
@@ -1555,7 +1663,6 @@ private fun buildEditorHubPage(): ScrollView {
         allFilesAccessButton.setOnClickListener { requestOptionalAllFilesAccess() }
         backgroundButton.setOnClickListener { requestBackgroundBatteryAccess() }
         appScanButton.setOnClickListener { scanMusicApps() }
-        historyButton.setOnClickListener { showHistory() }
         diagnosticsButton.setOnClickListener {
             status.text = "状态：正在检测 FFmpeg…"
             Thread {
@@ -1589,7 +1696,7 @@ private fun buildEditorHubPage(): ScrollView {
         }
 
         root.addView(UiKit.spacer(this, 18))
-        root.addView(UiKit.sectionLabel(this, "软件更新"))
+        root.addView(UiKit.sectionLabel(this, "更新与社区"))
         val updateCard = UiKit.card(this, 24)
         updateCard.addView(UiKit.text(this, "当前版本  ·  v${appVersionName}", 14.5f, UiKit.TEXT, true))
         updateCard.addView(
@@ -1606,6 +1713,21 @@ private fun buildEditorHubPage(): ScrollView {
         val checkUpdateButton = UiKit.wideButton(this, "↻", "检查更新", true)
         UiKit.margins(checkUpdateButton, 0, 14, 0, 0)
         updateCard.addView(checkUpdateButton)
+        val telegramRow = UiKit.groupRow(this, "✈", "Telegram 群聊", "MusicConverter_YJ_Lazy", "加入 ›").apply {
+            isClickable = true
+            isFocusable = true
+            setOnClickListener {
+                val telegramUri = Uri.parse("https://t.me/MusicConverter_YJ_Lazy")
+                try {
+                    startActivity(Intent(Intent.ACTION_VIEW, telegramUri))
+                } catch (_: ActivityNotFoundException) {
+                    Toast.makeText(this@MainActivity, "未检测到可打开 Telegram 的应用", Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+        updateCard.addView(UiKit.spacer(this, 8))
+        updateCard.addView(UiKit.groupDivider(this))
+        updateCard.addView(telegramRow)
         root.addView(updateCard)
         checkUpdateButton.setOnClickListener { maybeCheckRemoteUpdate(manual = true) }
 
@@ -1672,20 +1794,6 @@ private fun buildEditorHubPage(): ScrollView {
         val infoCard = UiKit.groupCard(this)
         infoCard.addView(UiKit.groupRow(this, "▣", "隐私与文件", "核心处理在本机完成；默认通过 Android SAF 访问用户主动选择的文件"))
         infoCard.addView(UiKit.groupDivider(this))
-        val telegramRow = UiKit.groupRow(this, "✈", "Telegram 群聊", "MusicConverter_YJ_Lazy", "加入 ›").apply {
-            isClickable = true
-            isFocusable = true
-            setOnClickListener {
-                val telegramUri = Uri.parse("https://t.me/MusicConverter_YJ_Lazy")
-                try {
-                    startActivity(Intent(Intent.ACTION_VIEW, telegramUri))
-                } catch (_: ActivityNotFoundException) {
-                    Toast.makeText(this@MainActivity, "未检测到可打开 Telegram 的应用", Toast.LENGTH_LONG).show()
-                }
-            }
-        }
-        infoCard.addView(telegramRow)
-        infoCard.addView(UiKit.groupDivider(this))
         infoCard.addView(UiKit.groupRow(this, "⌘", "开源组件", "FFmpeg / FFmpegKit · Chaquopy · Room · music-geshizhuanhuan · QMCDecode · Kugo-Music-Converter"))
         root.addView(infoCard)
 
@@ -1696,6 +1804,22 @@ private fun buildEditorHubPage(): ScrollView {
             }
         )
         return scroll
+    }
+
+    private fun showAppearanceDialog() {
+        val modes = ThemePreferences.Mode.values()
+        val selected = ThemePreferences.mode(this)
+        appDialogBuilder()
+            .setTitle("外观")
+            .setSingleChoiceItems(modes.map { it.title }.toTypedArray(), selected.ordinal) { dialog, index ->
+                dialog.dismiss()
+                if (modes[index] != selected) {
+                    ThemePreferences.setMode(this, modes[index])
+                    recreate()
+                }
+            }
+            .setNegativeButton("取消", null)
+            .show()
     }
 
     private fun checkMandatoryUpdateOnLaunch() {
@@ -2270,6 +2394,10 @@ private fun buildEditorHubPage(): ScrollView {
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == localMusicPickCode) {
+            if (resultCode == RESULT_OK && data != null) addLocalMusicDocuments(data)
+            return
+        }
 
         if (requestCode == saveConvertedAsCode) {
             if (resultCode != RESULT_OK) {
@@ -2383,15 +2511,6 @@ private fun buildEditorHubPage(): ScrollView {
                 }
             }
         }.start()
-    }
-
-    private fun showConvertDialog() {
-        val item = selected ?: run { toast("请先选择音乐文件"); return }
-        val formats = AudioOutputFormat.values()
-        appDialogBuilder()
-            .setTitle("选择输出格式")
-            .setItems(formats.map { it.label }.toTypedArray()) { _, which -> runConversion(item, formats[which]) }
-            .show()
     }
 
     private fun runConversion(item: PreparedAudio, target: AudioOutputFormat) {
@@ -2591,7 +2710,7 @@ private fun buildEditorHubPage(): ScrollView {
         }
     }
 
-    private fun showBatchConvertDialog() {
+    private fun showBatchConvertDialog(target: AudioOutputFormat) {
         if (batchRunning) {
             toast("批量任务正在运行")
             return
@@ -2603,38 +2722,30 @@ private fun buildEditorHubPage(): ScrollView {
             return
         }
 
-        val formats = AudioOutputFormat.values()
         val encrypted = files.count { AudioFormatDetector.isEncrypted(it.displayName) }
 
         val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(UiKit.dp(this@MainActivity, 22), UiKit.dp(this@MainActivity, 4), UiKit.dp(this@MainActivity, 22), 0)
         }
-        content.addView(UiKit.text(this, "请选择统一输出格式", 13f, UiKit.TEXT_2, true))
-
-        val formatGroup = RadioGroup(this).apply {
-            orientation = RadioGroup.VERTICAL
-            setPadding(0, UiKit.dp(this@MainActivity, 8), 0, 0)
+        content.addView(UiKit.text(this, "输出格式：${target.label}", 14f, UiKit.TEXT, true))
+        val advancedToggle = UiKit.groupButton(this, "⌄", "高级选项").apply {
+            setPadding(0, 0, 0, 0)
         }
-        formats.forEach { format ->
-            val rb = RadioButton(this).apply {
-                id = android.view.View.generateViewId()
-                tag = format
-                text = if (format == AudioOutputFormat.MP3) "${format.label}（推荐）" else format.label
-                textSize = 14f
-                setTextColor(UiKit.TEXT)
-                buttonTintList = android.content.res.ColorStateList(
-                    arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()),
-                    intArrayOf(UiKit.ACCENT, UiKit.TEXT_3)
-                )
-                isChecked = format == AudioOutputFormat.MP3
-            }
-            formatGroup.addView(rb)
+        content.addView(advancedToggle)
+        val advanced = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            visibility = View.GONE
         }
-        content.addView(formatGroup)
+        content.addView(advanced)
+        advancedToggle.setOnClickListener {
+            val expand = advanced.visibility != View.VISIBLE
+            advanced.visibility = if (expand) View.VISIBLE else View.GONE
+            advancedToggle.text = if (expand) "⌃   收起高级选项" else "⌄   高级选项"
+        }
 
         val recommendedWorkers = BatchConversionService.recommendedParallelism()
-        content.addView(UiKit.text(this, "并行转换任务数", 13f, UiKit.TEXT_2, true).apply {
+        advanced.addView(UiKit.text(this, "并行转换任务数", 13f, UiKit.TEXT_2, true).apply {
             setPadding(0, UiKit.dp(this@MainActivity, 14), 0, 0)
         })
         val workerGroup = RadioGroup(this).apply {
@@ -2657,12 +2768,15 @@ private fun buildEditorHubPage(): ScrollView {
                     arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()),
                     intArrayOf(UiKit.ACCENT, UiKit.TEXT_3)
                 )
-                isChecked = workers == recommendedWorkers
             }
             workerGroup.addView(rb)
         }
-        content.addView(workerGroup)
-        content.addView(UiKit.text(
+        val recommendedButton = (0 until workerGroup.childCount)
+            .mapNotNull { workerGroup.getChildAt(it) as? RadioButton }
+            .firstOrNull { it.tag == recommendedWorkers }
+        recommendedButton?.let { workerGroup.check(it.id) }
+        advanced.addView(workerGroup)
+        advanced.addView(UiKit.text(
             this,
             "2～3 路通常更适合手机。FFmpeg 单个任务本身也会使用多核，4 路可能更热，且在慢速存储上不一定更快。",
             11.5f,
@@ -2680,8 +2794,8 @@ private fun buildEditorHubPage(): ScrollView {
                 intArrayOf(UiKit.ACCENT, UiKit.TEXT_3)
             )
         }
-        content.addView(replaceSource)
-        content.addView(UiKit.text(
+        advanced.addView(replaceSource)
+        advanced.addView(UiKit.text(
             this,
             "置换模式：只有转换成功后才尝试在原位置写入新音频并按目标格式重命名。若文件提供方不支持写入/重命名，会保留源文件和已生成的输出，不会强制删除。",
             11.5f,
@@ -2718,14 +2832,11 @@ private fun buildEditorHubPage(): ScrollView {
             dialog.getButton(AlertDialog.BUTTON_POSITIVE)?.apply {
                 isAllCaps = false
                 setOnClickListener {
-                    val checkedId = formatGroup.checkedRadioButtonId
-                    val checked = formatGroup.findViewById<RadioButton>(checkedId)
-                    val selectedFormat = (checked?.tag as? AudioOutputFormat) ?: AudioOutputFormat.MP3
                     val replace = replaceSource.isChecked
                     val workerChecked = workerGroup.findViewById<RadioButton>(workerGroup.checkedRadioButtonId)
                     val workers = (workerChecked?.tag as? Int) ?: recommendedWorkers
                     dialog.dismiss()
-                    runBatchConversion(files, selectedFormat, replace, workers)
+                    runBatchConversion(files, target, replace, workers)
                 }
             }
         }
@@ -2743,7 +2854,8 @@ private fun buildEditorHubPage(): ScrollView {
         batchConvertButton.isEnabled = false
         batchConvertButton.alpha = 0.55f
         if (::batchPauseButton.isInitialized) {
-            batchPauseButton.isEnabled = true
+            batchPauseButton.visibility = View.VISIBLE
+                batchPauseButton.isEnabled = true
             batchPauseButton.alpha = 1f
             batchPauseButton.text = "Ⅱ   完成当前任务后暂停"
         }
@@ -2798,6 +2910,7 @@ private fun buildEditorHubPage(): ScrollView {
         }
 
         if (::batchPauseButton.isInitialized) {
+            batchPauseButton.visibility = View.GONE
             batchPauseButton.isEnabled = false
             batchPauseButton.alpha = 0.45f
             batchPauseButton.text = "Ⅱ   完成当前任务后暂停"
