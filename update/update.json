@@ -1,15 +1,16 @@
 {
-  "versionCode": 41,
-  "versionName": "2.6.3",
-  "title": "MusicConverter 2.6.3",
+  "versionCode": 42,
+  "versionName": "2.7.0",
+  "title": "MusicConverter 2.7.0",
   "changelog": [
-    "接入 FFmpegKitNext 9.0.2，替换原有 FFmpegKit 依赖。",
-    "更新 FFmpeg 音频处理接口，适配 FFmpegKitNext 的会话结果读取方式。"
+    "更新UI",
+    "添加搜索选项",
+    "正式版也去除了在线音乐"
   ],
-  "githubUrl": "https://github.com/YJ-Lazy/MusicConverter/releases/latest",
-  "quarkUrl": "https://pan.quark.cn/s/bc7cbd178f5a",
-  "lanzouUrl": "https://ssssvip.lanzoue.com/b0xxjc13c",
-  "lanzouPassword": "6666",
+  "githubUrl": "https://github.com/YJ-Lazy/MusicConverter/releases/tag/v2.7.0",
+  "quarkUrl": "",
+  "lanzouUrl": "",
+  "lanzouPassword": "",
   "force": false,
   "minSupportedVersionCode": 37,
   "allowedStayVersionCodes": [],
