@@ -105,6 +105,9 @@ jobs:
       - name: Build Debug APK
         run: ./gradlew :app:assembleDebug --no-daemon --stacktrace
 
+      - name: Verify Debug APK has no Xposed module metadata
+        run: python3 tools/check_public_apk.py app/build/outputs/apk/debug/app-debug.apk
+
       - name: Stage Debug APK
         id: debug_version
         shell: bash
@@ -239,6 +242,9 @@ jobs:
           RELEASE_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           RELEASE_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: ./gradlew :app:assembleRelease --no-daemon --stacktrace
+
+      - name: Verify Release APK has no Xposed module metadata
+        run: python3 tools/check_public_apk.py app/build/outputs/apk/release/app-release.apk
 
       - name: Stage Release APK
         shell: bash

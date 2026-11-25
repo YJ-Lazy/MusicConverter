@@ -30,8 +30,8 @@ android {
         applicationId "com.musicconverter.miui"
         minSdk 29
         targetSdk 35
-        versionCode 42
-        versionName "2.7.0"
+        versionCode 43
+        versionName "2.7.1"
 
         ndk {
             abiFilters "arm64-v8a", "armeabi-v7a"
@@ -88,8 +88,6 @@ chaquopy {
 }
 
 dependencies {
-    // Provided by the framework at runtime.
-    compileOnly "io.github.libxposed:api:102.0.0"
     implementation "com.arthenica:ffmpeg-kit-next:9.0.2"
     implementation "androidx.room:room-runtime:2.6.1"
     kapt "androidx.room:room-compiler:2.6.1"

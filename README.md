@@ -2,10 +2,14 @@
 
 一款面向 Android 的本地音乐管理、格式转换与音频处理工具。
 
-当前正式版：**v2.7.0**  
+当前正式版：**v2.7.1**  
 最低 Android 版本：**Android 10（API 29）**
 
-下载：[v2.7.0 正式版发布页](https://github.com/YJ-Lazy/MusicConverter/releases/tag/v2.7.0)。提供通用签名 APK 与 SHA-256 校验文件。
+下载：[v2.7.1 正式版发布页](https://github.com/YJ-Lazy/MusicConverter/releases/tag/v2.7.1)。提供通用签名 APK 与 SHA-256 校验文件。
+
+## v2.7.1 更新内容
+
+- 去除冗余代码。正式版不再包含 Xposed 模块入口和注册文件。
 
 ## v2.7.0 更新内容
 
