@@ -2,22 +2,18 @@
 
 一款面向 Android 的本地音乐管理、格式转换与音频处理工具。
 
-当前正式版本：**v2.6**  
+当前正式版：**v2.7.0**  
 最低 Android 版本：**Android 10（API 29）**
-## 社区交流
-hook版可在网盘下载
-[蓝奏云]( https://ssssvip.lanzoue.com/b0xxjc13c)密码：6666或者前往tg频道获取
-加入 Telegram 群聊：[MusicConverter_YJ_Lazy](https://t.me/MusicConverter_YJ_Lazy)
 
+下载：[v2.7.0 正式版发布页](https://github.com/YJ-Lazy/MusicConverter/releases/tag/v2.7.0)。提供通用签名 APK 与 SHA-256 校验文件。
 
-##因工作原因将暂停更新，复更时间待定
-当前hook版已知问题有hookQQ音乐时或许将不能使用（单曲循环指定次数）的功能
-酷我没有收到反馈，不知还有没有bug
+## v2.7.0 更新内容
 
-## v2.6 更新内容
+1. 更新 UI，支持日间、夜间和跟随系统。
+2. 添加本地音乐搜索，可在全部目录或当前目录内查找歌曲。退出搜索后返回原目录和列表位置。
+3. 正式版已移除在线音乐搜索和播放。本地歌曲缺少封面时，仍可联网补全封面。
 
-- 优化日间配色与文字对比度，修复深色弹窗和紫色控件不随主题切换的问题。
-- 详情见 [2.6 发布说明](release-notes/v2.6.md)。
+历史更新见 [v2.6 发布说明](release-notes/v2.6.md)。
 
 ## 主要功能
 
@@ -47,6 +43,8 @@ hook版可在网盘下载
 扫描结果按歌曲所在目录分组，提供“全部”和各目录列表，各目录按歌曲数量从多到少排列。目录标签栏可左右滑动，点击标签切换目录，浏览标签时不会带动首页整体滚动。列表切换使用淡出与滑入动画。
 
 为了提升大量歌曲场景下的流畅度，列表采用分批渲染。歌曲缺少本地缩略图时，应用可以联网尝试补全封面，成功结果会写入缓存，避免反复请求。
+
+在「本地音乐」页，先选「全部音乐」或一个目录，再点搜索。支持按标题、文件名或歌手查找；在结果页点返回，即可回到原来的列表位置。
 
 播放器支持：
 
@@ -110,7 +108,7 @@ hook版可在网盘下载
 
 底部“设置”页面集中提供界面与系统相关选项，并在页面最下方保留应用介绍。主要包括：
 
-- 深色 / 浅色主题
+- 外观模式：跟随系统、日间、夜间
 - 底部播放器默认显示
 - 所有文件访问权限
 - 后台耗电 / 电池优化
@@ -145,9 +143,11 @@ Android 11 及以上版本中，`Android/data`、`Android/obb` 等目录仍受�
 - minSdk 29
 - ABI：`arm64-v8a`、`armeabi-v7a`
 
-项目使用 Chaquopy 调用 Python 音频处理组件，并使用工程内的 FFmpegKit module，不依赖已经停止发布的 FFmpegKit Maven artifact。
+项目使用 Chaquopy 调用 Python 音频处理组件。FFmpegKitNext v9.0.2 由源码构建为 Android AAR，再通过 `third_party/ffmpegkitnext-maven/` 集成。GitHub Actions 会自动准备该依赖。
 
 ### 本地构建
+
+先按 [构建工作流](.github/workflows/android-apk.yml) 生成并暂存 FFmpegKitNext 的本地 Maven 文件，再运行：
 
 ```bash
 ./gradlew assembleDebug
@@ -175,3 +175,15 @@ Release 构建需要配置对应的签名信息。
 ## 项目定位
 
 MusicConverter 主要用于管理和处理用户自己拥有并有权处理的本地音频文件。应用不会绕过 Android 系统的存储沙箱限制。
+
+## 社区交流
+hook版可在网盘下载
+[蓝奏云]( https://ssssvip.lanzoue.com/b0xxjc13c)密码：6666或者前往tg频道获取
+加入 Telegram 群聊：[MusicConverter_YJ_Lazy](https://t.me/MusicConverter_YJ_Lazy)
+
+
+## 维护说明
+
+因工作原因将暂停更新，复更时间待定。
+当前hook版已知问题有hookQQ音乐时或许将不能使用（单曲循环指定次数）的功能
+酷我没有收到反馈，不知还有没有bug
