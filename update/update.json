@@ -1,13 +1,11 @@
 {
-  "versionCode": 42,
-  "versionName": "2.7.0",
-  "title": "MusicConverter 2.7.0",
+  "versionCode": 43,
+  "versionName": "2.7.1",
+  "title": "MusicConverter 2.7.1",
   "changelog": [
-    "更新UI",
-    "添加搜索选项",
-    "正式版也去除了在线音乐"
+    "去除冗余代码"
   ],
-  "githubUrl": "https://github.com/YJ-Lazy/MusicConverter/releases/tag/v2.7.0",
+  "githubUrl": "https://github.com/YJ-Lazy/MusicConverter/releases/tag/v2.7.1",
   "quarkUrl": "",
   "lanzouUrl": "",
   "lanzouPassword": "",
