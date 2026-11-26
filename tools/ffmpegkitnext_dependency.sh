@@ -16,12 +16,12 @@ series() {
 }
 validate_series() { [[ "$1" =~ ^[0-9]+\.[0-9]+$ ]] || { echo "Invalid series: $1" >&2; return 1; }; }
 verify() {
-    test -s "$BASE.aar"
-    test -s "$BASE.pom"
-    unzip -tq "$BASE.aar"
+    test -s "$BASE.aar" || return 1
+    test -s "$BASE.pom" || return 1
+    unzip -tq "$BASE.aar" || return 1
     local entries
-    entries="$(unzip -Z1 "$BASE.aar")"
-    grep -Fx 'jni/arm64-v8a/libffmpegkit.so' <<< "$entries" >/dev/null
+    entries="$(unzip -Z1 "$BASE.aar")" || return 1
+    grep -Fx 'jni/arm64-v8a/libffmpegkit.so' <<< "$entries" >/dev/null || return 1
     grep -Fx 'jni/armeabi-v7a/libffmpegkit.so' <<< "$entries" >/dev/null
 }
 fetch() {
@@ -37,10 +37,11 @@ fetch() {
     if [[ "$status" != 200 ]]; then rm -rf "$tmp"; echo "Dependency download HTTP $status" >&2; return 1; fi
     curl --fail --silent --show-error --location --retry 3 "$uri/maven.tar.gz" -o "$tmp/maven.tar.gz" || { rm -rf "$tmp"; return 1; }
     (
-        cd "$tmp"
+        cd "$tmp" || exit 1
         # Reject unexpected checksum formats and paths.
-        grep -Ex '[a-f0-9]{64}  maven\.tar\.gz' maven.tar.gz.sha256 >/dev/null
-        sha256sum -c maven.tar.gz.sha256
+        test "$(wc -l < maven.tar.gz.sha256)" -eq 1 || exit 1
+        grep -Ex '[a-f0-9]{64}  maven\.tar\.gz' maven.tar.gz.sha256 >/dev/null || exit 1
+        sha256sum --check --strict maven.tar.gz.sha256 || exit 1
         python3 - <<'PY'
 import tarfile
 from pathlib import PurePosixPath
@@ -51,11 +52,11 @@ with tarfile.open("maven.tar.gz", "r:gz") as archive:
             raise SystemExit("Invalid dependency archive member: " + item.name)
 PY
     ) || { rm -rf "$tmp"; return 1; }
-    rm -rf "$MAVEN"
-    mkdir -p "$MAVEN"
-    tar -xzf "$tmp/maven.tar.gz" -C "$MAVEN"
+    rm -rf "$MAVEN" || { rm -rf "$tmp"; return 1; }
+    mkdir -p "$MAVEN" || { rm -rf "$tmp"; return 1; }
+    tar -xzf "$tmp/maven.tar.gz" -C "$MAVEN" || { rm -rf "$tmp" "$MAVEN"; return 1; }
     rm -rf "$tmp"
-    verify
+    verify || { rm -rf "$MAVEN"; return 1; }
 }
 case "${1:-}" in
     series) series ;;
