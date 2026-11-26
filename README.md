@@ -147,11 +147,11 @@ Android 11 及以上版本中，`Android/data`、`Android/obb` 等目录仍受�
 - minSdk 29
 - ABI：`arm64-v8a`、`armeabi-v7a`
 
-项目使用 Chaquopy 调用 Python 音频处理组件。FFmpegKitNext v9.0.2 由源码构建为 Android AAR，再通过 `third_party/ffmpegkitnext-maven/` 集成。GitHub Actions 会自动准备该依赖。
+项目使用 Chaquopy 调用 Python 音频处理组件。FFmpegKitNext v9.0.2 按应用主版本.次版本在公开仓库 `ffmpegkitnext-prebuilt` 分支持久保存 ARM AAR/Maven 文件和 SHA-256。补丁版本、UI、Hook 更新直接复用；新系列首次构建才生成依赖。正式版和 Hook 版使用同一份依赖。
 
 ### 本地构建
 
-先按 [构建工作流](.github/workflows/android-apk.yml) 生成并暂存 FFmpegKitNext 的本地 Maven 文件，再运行：
+先执行 `bash tools/ffmpegkitnext_dependency.sh fetch $(bash tools/ffmpegkitnext_dependency.sh series)` 下载并校验当前系列依赖，再运行：
 
 ```bash
 ./gradlew assembleDebug
@@ -191,3 +191,6 @@ hook版可在网盘下载
 因工作原因将暂停更新，复更时间待定。
 当前hook版已知问题有hookQQ音乐时或许将不能使用（单曲循环指定次数）的功能
 酷我没有收到反馈，不知还有没有bug
+
+## FFmpegKitNext 依赖维护
+普通 APK 构建不重复编译 FFmpegKitNext。新系列（例如 2.7.x → 2.8.0）首次在正式版构建时生成并持久保存。也可手动运行 `Prepare persistent FFmpegKitNext dependency` 提前准备新系列。依赖分支不创建 APP Release、不发送正式版更新通知。依赖缺失时 Hook 版要求先由公开仓库准备；网络或校验错误不会触发重新编译。
