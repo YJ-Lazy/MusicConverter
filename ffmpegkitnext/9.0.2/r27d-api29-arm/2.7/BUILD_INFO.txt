@@ -1,0 +1,4 @@
+FFmpegKitNext v9.0.2, NDK r27d, API 29, ARMv7 + ARM64
+Upstream: https://github.com/arthenica/ffmpeg-kit-next/tree/v9.0.2
+Source revision: 9f04bf1e3c97def70b98e198cb80a57b43ef5b45
+App series: 2.7
