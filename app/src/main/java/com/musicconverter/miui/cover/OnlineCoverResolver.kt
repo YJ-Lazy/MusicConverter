@@ -79,6 +79,27 @@ object OnlineCoverResolver {
         }
     }
 
+    /**
+     * Persistent tags require a stricter match than the player artwork preview.
+     * Only call on a background worker. Never persist a title-only fallback.
+     */
+    internal fun resolveForEmbedding(title: String, artist: String, album: String): String? {
+        if (strictNorm(title).isBlank() || strictNorm(artist).isBlank()) return null
+        for (country in arrayOf("CN", "HK")) {
+            runCatching { searchApple(title, artist, country, true, album) }.getOrNull()?.let { return it }
+        }
+        return runCatching { searchNetease(title, artist, true, album) }.getOrNull()
+    }
+
+    private fun strictNorm(value: String): String = value.lowercase()
+        .filter { it.isLetterOrDigit() }
+
+    private fun strictMatch(title: String, artist: String, album: String,
+                            remoteTitle: String, remoteArtist: String, remoteAlbum: String): Boolean =
+        strictNorm(title) == strictNorm(remoteTitle) &&
+            strictNorm(artist) == strictNorm(remoteArtist) &&
+            (album.isBlank() || strictNorm(album) == strictNorm(remoteAlbum))
+
     private fun search(title: String, artist: String): String? {
         for (country in arrayOf("CN", "HK", "US", "JP")) {
             searchApple(title, artist, country)?.let { return it }
@@ -94,7 +115,7 @@ object OnlineCoverResolver {
             ?: if (artist.isNotBlank()) searchNetease(title, "") else null
     }
 
-    private fun searchApple(title: String, artist: String, country: String): String? {
+    private fun searchApple(title: String, artist: String, country: String, strict: Boolean = false, album: String = ""): String? {
         val term = listOf(title, artist).filter { it.isNotBlank() }.joinToString(" ")
         val q = URLEncoder.encode(term, "UTF-8")
         val c = open(
@@ -121,6 +142,11 @@ object OnlineCoverResolver {
                     .replace("100x100bb", "600x600bb")
                     .replace("http://", "https://")
 
+                if (strict) {
+                    if (strictMatch(title, artist, album, item.optString("trackName"),
+                            item.optString("artistName"), item.optString("collectionName"))) return large
+                    continue
+                }
                 if (fallback == null) fallback = large
 
                 val remoteTitle = norm(item.optString("trackName"))
@@ -138,7 +164,7 @@ object OnlineCoverResolver {
         }
     }
 
-    private fun searchNetease(title: String, artist: String): String? {
+    private fun searchNetease(title: String, artist: String, strict: Boolean = false, album: String = ""): String? {
         val term = listOf(title, artist).filter { it.isNotBlank() }.joinToString(" ")
         val q = URLEncoder.encode(term, "UTF-8")
         val c = open(
@@ -177,6 +203,11 @@ object OnlineCoverResolver {
                         }
                     }
                 }
+                if (strict) {
+                    if (strictMatch(title, artist, album, song.optString("name"), remoteArtists,
+                            song.optJSONObject("album")?.optString("name").orEmpty())) return cover
+                    continue
+                }
                 val remoteArtist = norm(remoteArtists)
 
                 val titleMatch = titleKey.isNotBlank() &&
@@ -186,7 +217,7 @@ object OnlineCoverResolver {
 
                 if (titleMatch && artistMatch) return cover
             }
-            return fallback
+            return if (strict) null else fallback
         } finally {
             c.disconnect()
         }

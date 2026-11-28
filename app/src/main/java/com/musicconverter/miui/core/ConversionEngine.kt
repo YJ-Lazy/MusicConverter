@@ -3,6 +3,7 @@ package com.musicconverter.miui.core
 import android.content.Context
 import android.net.Uri
 import com.musicconverter.miui.data.HistoryRepository
+import com.musicconverter.miui.cover.AudioCoverEmbedder
 import java.io.File
 
 data class ConversionResult(
@@ -46,6 +47,7 @@ class ConversionEngine(private val context: Context) {
             return ConversionResult(false, error = ok.message)
         }
 
+        AudioCoverEmbedder.complete(working, tempOut, input.displayName)
         return try {
             val uri = AudioFileManager.publishAudio(context, tempOut, outName)
             tempOut.delete()
@@ -89,6 +91,8 @@ class ConversionEngine(private val context: Context) {
             working.copyTo(tempOut, overwrite = true)
             FfmpegResult(true)
         }
+
+        if (result.success) AudioCoverEmbedder.complete(working, tempOut, input.displayName)
 
         if (working != input.localFile && working.absolutePath.startsWith(context.cacheDir.absolutePath)) {
             working.delete()

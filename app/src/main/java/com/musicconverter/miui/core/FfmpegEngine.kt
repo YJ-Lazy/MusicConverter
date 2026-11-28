@@ -25,6 +25,23 @@ object FfmpegEngine {
         return execute(args)
     }
 
+    /** Add a front cover without re-encoding the audio stream. */
+    fun embedCover(input: File, jpeg: File, output: File): FfmpegResult {
+        val ext = AudioFormatDetector.extension(input)
+        if (ext !in setOf("mp3", "flac") || AudioFormatDetector.extension(output) != ext) {
+            return FfmpegResult(false, "不支持的封面写入格式")
+        }
+        val args = mutableListOf(
+            "-y", "-i", input.absolutePath, "-i", jpeg.absolutePath,
+            "-map", "0:a:0", "-map", "1:v:0", "-map_metadata", "0",
+            "-c:a", "copy", "-c:v", "copy", "-disposition:v:0", "attached_pic",
+            "-metadata:s:v:0", "title=Album cover", "-metadata:s:v:0", "comment=Cover (front)"
+        )
+        if (ext == "mp3") args += listOf("-id3v2_version", "3")
+        args += output.absolutePath
+        return execute(args)
+    }
+
     fun cancelAll() {
         runCatching { FFmpegKit.cancel() }
     }
